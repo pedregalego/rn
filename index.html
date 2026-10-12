@@ -359,9 +359,9 @@
 <div class="splash-screen" id="splashScreen">
     <div class="splash-logo">HUMANO.EXE</div>
     <h1>SCANNER MULTIRROSTOS · AR-HUD</h1>
-    <p>Detecção e indexação visual em tempo real. Todos os dossiês são sintéticos e fictícios. Nenhuma identidade civil é reconhecida.</p>
+    <p>Detecção e indexação visual em tempo real de múltiplos rostos. Todos os dossiês são sintéticos e fictícios. Nenhuma identidade civil é reconhecida.</p>
     <div class="loading" id="loadingText">Aguardando ativação...</div>
-    <button class="btn" id="startButton" style="margin-top: 18px; padding: 12px 26px; font-size: 0.95rem;">▶ ATIVAR CÂMERA</button>
+    <button class="btn" id="startButton" style="margin-top: 18px; padding: 12px 26px; font-size: 0.95rem;">▶ ATIVAR CÂMERA TRASEIRA</button>
 </div>
 
 <div class="disclaimer">Simulação interativa — todos os dossiês são fictícios. Nenhum dado real é coletado ou transmitido.</div>
@@ -424,7 +424,7 @@ const humano = (() => {
         rejectedHoldMs: 1500,       // tempo que ficha rejeitada fica visível
         assocDistFactor: 0.6,       // fator de distância em relação ao tamanho do rosto
         assocIouThreshold: 0.15,    // IoU mínimo para considerar mesma trilha
-        maxTracks: 12,              // limite prático de trilhas simultâneas
+        maxTracks: 10,              // limite prático de trilhas simultâneas (múltiplos rostos)
         detectInterval: 80,         // ms entre detecções
         typeSpeed: 18,              // ms por caractere
         typeSpeedFast: 6
@@ -433,7 +433,7 @@ const humano = (() => {
     const state = {
         cameraAtiva: false,
         pausado: false,
-        facingMode: { ideal: 'environment' },
+        facingMode: { ideal: 'environment' }, // Câmera traseira por padrão
         detectionCount: 0,
         recordCount: 0,
         tracks: [],                 // trilhas visuais ativas
@@ -553,11 +553,12 @@ const humano = (() => {
                     delegate: "GPU"
                 },
                 runningMode: "VIDEO",
-                minDetectionConfidence: 0.45
+                minDetectionConfidence: 0.45,
+                maxNumFaces: 10  // ✅ PERMITE DETECTAR ATÉ 10 ROSTOS POR FRAME
             });
 
             state.detectorReady = true;
-            el.loadingText.textContent = 'Detector pronto. Solicitando câmera...';
+            el.loadingText.textContent = 'Detector pronto. Iniciando câmera traseira...';
             await iniciarCamera();
             el.splashScreen.classList.add('hidden');
             ajustarCanvas();
@@ -593,7 +594,7 @@ const humano = (() => {
             });
             await video.play();
             state.cameraAtiva = true;
-            atualizarStatus("DETECTANDO...", 'detalhes');
+            atualizarStatus("DETECTANDO MÚLTIPLOS ROSTOS...", 'detalhes');
         } catch (err) {
             throw new Error("Câmera indisponível: " + err.message);
         }
