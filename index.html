@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>HUMANO.EXE — Scanner Multirrostos AR</title>
+<title>人类.EXE — 多人脸扫描仪</title>
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root {
@@ -13,8 +13,8 @@
         --red: #ff3355;
         --purple: #a78bfa;
         --scan-color: #00ffcc;
-        --font-mono: 'Courier New', 'Consolas', monospace;
-        --glass-bg: rgba(10, 15, 22, 0.72);
+        --font-mono: 'Courier New', 'Noto Sans SC', 'Microsoft YaHei', 'PingFang SC', monospace;
+        --glass-bg: rgba(10, 15, 22, 0.78);
         --glass-border: rgba(0, 255, 136, 0.25);
     }
 
@@ -27,7 +27,6 @@
         overscroll-behavior: none;
     }
 
-    /* ---------- Camadas base ---------- */
     #videoElement {
         position: fixed; inset: 0;
         width: 100%; height: 100%;
@@ -48,7 +47,7 @@
         overflow: hidden;
     }
 
-    /* Scanner overlay */
+    /* 扫描覆盖层 */
     .scanner-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
     .scanline {
         position: absolute; width: 100%; height: 3px;
@@ -63,10 +62,13 @@
     }
     .vignette { position: absolute; inset: 0; background: radial-gradient(transparent 55%, rgba(0,0,0,0.55) 100%); }
 
-    /* ---------- Cartões HUD ---------- */
-    .hud-card {
+    /* ============================================================ *
+     * 卡片 - 锚定在脸部上方，随人脸移动                              *
+     * ============================================================ */
+    .face-card {
         position: absolute;
-        width: 230px;
+        min-width: 170px;
+        max-width: 230px;
         background: var(--glass-bg);
         backdrop-filter: blur(14px) saturate(140%);
         -webkit-backdrop-filter: blur(14px) saturate(140%);
@@ -74,41 +76,50 @@
         border-left: 3px solid var(--scan-color);
         border-radius: 6px;
         color: var(--terminal-green);
-        font-size: 0.7rem;
+        font-size: 0.72rem;
         line-height: 1.5;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
         opacity: 0;
-        transform: translateY(10px) scale(0.95);
-        transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.34,1.56,0.64,1), border-color 0.3s;
+        transform: translate(-50%, -100%) scale(0.9);
+        transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.34,1.56,0.64,1),
+                    border-color 0.3s, background 0.3s;
         pointer-events: auto;
-        will-change: transform, left, top, opacity;
+        cursor: pointer;
         touch-action: manipulation;
+        will-change: transform, left, top, opacity;
     }
-    .hud-card.visible { opacity: 1; transform: translateY(0) scale(1); }
-    .hud-card.lost { opacity: 0; transform: translateY(-20px) scale(0.85); }
-    .hud-card.confirmed { border-left-color: var(--terminal-green); }
-    .hud-card.rejected { border-left-color: var(--red); opacity: 0.6; }
+    .face-card.visible { opacity: 1; transform: translate(-50%, -100%) scale(1); }
+    .face-card.confirmed {
+        border-left-color: var(--terminal-green);
+        background: rgba(0, 30, 20, 0.85);
+        transform: translate(-50%, -100%) scale(0.85);
+        opacity: 0.9;
+    }
+    .face-card.rejected { border-left-color: var(--red); opacity: 0.5; }
 
-    /* Cantos */
-    .hud-card::before, .hud-card::after {
-        content: ''; position: absolute; width: 12px; height: 12px;
+    /* 四角标记 */
+    .face-card::before, .face-card::after {
+        content: ''; position: absolute; width: 10px; height: 10px;
         border: 2px solid var(--scan-color); pointer-events: none;
+        transition: border-color 0.3s;
     }
-    .hud-card::before { top: -2px; left: -2px; border-right: none; border-bottom: none; border-radius: 4px 0 0 0; }
-    .hud-card::after { bottom: -2px; right: -2px; border-left: none; border-top: none; border-radius: 0 0 4px 0; }
+    .face-card::before { top: -2px; left: -2px; border-right: none; border-bottom: none; border-radius: 4px 0 0 0; }
+    .face-card::after { bottom: -2px; right: -2px; border-left: none; border-top: none; border-radius: 0 0 4px 0; }
+    .face-card.confirmed::before, .face-card.confirmed::after { border-color: var(--terminal-green); }
+    .face-card.rejected::before, .face-card.rejected::after { border-color: var(--red); }
 
     .card-header {
         display: flex; justify-content: space-between; align-items: center;
-        padding: 6px 9px 5px;
+        padding: 5px 9px 4px;
         border-bottom: 1px solid rgba(0, 255, 136, 0.18);
     }
     .card-id {
-        font-size: 0.72rem; letter-spacing: 1.5px;
+        font-size: 0.7rem; letter-spacing: 1.5px;
         color: var(--scan-color);
         text-shadow: 0 0 8px rgba(0, 255, 204, 0.5);
     }
     .card-status {
-        font-size: 0.58rem; padding: 2px 6px;
+        font-size: 0.55rem; padding: 2px 6px;
         border: 1px solid var(--glass-border);
         border-radius: 99px;
         letter-spacing: 1px; white-space: nowrap;
@@ -120,16 +131,15 @@
     .card-status.rejected { color: var(--red); border-color: rgba(255,51,85,0.5); animation: none; }
     @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
 
-    .card-body { padding: 6px 9px 7px; font-size: 0.66rem; min-height: 20px; }
+    .card-body { padding: 5px 9px 6px; font-size: 0.68rem; min-height: 18px; }
     .card-body .term-line {
         color: var(--scan-color); opacity: 0.9;
         margin: 2px 0;
-        font-size: 0.62rem;
+        font-size: 0.64rem;
         letter-spacing: 0.3px;
     }
     .card-body .term-line.ok { color: var(--terminal-green); }
     .card-body .term-line.warn { color: var(--amber); }
-    .card-body .term-line.err { color: var(--red); }
     .card-body .term-line .cursor {
         display: inline-block; width: 6px; height: 0.85em;
         background: var(--scan-color); vertical-align: middle;
@@ -137,67 +147,51 @@
     }
     @keyframes blink { 50% { opacity: 0; } }
 
-    /* Dados decifrados */
-    .card-data {
-        margin-top: 5px; padding-top: 5px;
-        border-top: 1px dashed rgba(0, 255, 136, 0.22);
-        display: grid; grid-template-columns: auto 1fr;
-        gap: 2px 8px; font-size: 0.62rem;
-    }
-    .card-data .lbl { color: #7aa392; letter-spacing: 0.5px; }
-    .card-data .val { color: var(--amber); text-align: right; letter-spacing: 0.3px; }
-    .card-data .val.cipher { color: var(--purple); }
-    .card-data .val.score { color: var(--terminal-green); font-weight: bold; }
-
-    .card-index-code {
-        text-align: center; margin-top: 6px; padding: 5px;
-        border: 1px dashed rgba(0, 255, 136, 0.4);
-        border-radius: 4px;
-        background: rgba(0, 255, 136, 0.05);
-        font-size: 1.1rem; letter-spacing: 3px;
+    /* 最终昵称展示 */
+    .card-nickname {
+        text-align: center;
+        padding: 6px 4px;
+        font-size: 1.15rem;
+        letter-spacing: 3px;
         color: var(--terminal-green);
-        text-shadow: 0 0 10px var(--terminal-green);
+        text-shadow: 0 0 12px var(--terminal-green), 0 0 24px rgba(0,255,136,0.4);
+        font-weight: 500;
     }
-    .card-index-code .code-label {
-        display: block; font-size: 0.48rem;
-        color: #888; letter-spacing: 2px; margin-bottom: 2px;
+    .card-nickname-label {
+        display: block;
+        font-size: 0.5rem;
+        color: #888;
+        letter-spacing: 3px;
+        margin-bottom: 2px;
+        text-shadow: none;
+        font-weight: normal;
     }
 
-    /* Ações */
-    .card-actions {
-        display: flex; gap: 5px;
-        padding: 6px 9px 8px;
-        border-top: 1px solid rgba(0, 255, 136, 0.18);
-        background: rgba(0, 0, 0, 0.25);
+    /* 确认提示 */
+    .card-hint {
+        text-align: center;
+        font-size: 0.6rem;
+        color: var(--amber);
+        padding: 4px 0 6px;
+        letter-spacing: 2px;
+        animation: pulse 1.4s ease-in-out infinite;
+        border-top: 1px dashed rgba(255, 170, 0, 0.3);
+        margin-top: 3px;
     }
-    .action-btn {
-        flex: 1;
-        background: rgba(0, 0, 0, 0.4);
-        border: 1px solid rgba(0, 255, 136, 0.4);
-        color: var(--terminal-green);
-        padding: 6px 0;
-        font-family: var(--font-mono);
-        font-size: 0.62rem;
-        letter-spacing: 1px;
-        cursor: pointer;
-        border-radius: 3px;
-        transition: all 0.15s ease;
-        text-transform: uppercase;
-        touch-action: manipulation;
-    }
-    .action-btn:active:not(:disabled) {
-        background: rgba(0, 255, 136, 0.3);
-        box-shadow: 0 0 12px rgba(0, 255, 136, 0.5);
-        transform: scale(0.97);
-    }
-    .action-btn.danger { border-color: rgba(255, 51, 85, 0.5); color: var(--red); }
-    .action-btn.danger:active:not(:disabled) {
-        background: rgba(255, 51, 85, 0.3);
-        box-shadow: 0 0 12px rgba(255, 51, 85, 0.5);
-    }
-    .action-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .card-hint::before { content: '▸ '; }
 
-    /* Barra de progresso */
+    /* 索引代码 */
+    .card-code {
+        text-align: center;
+        font-size: 0.55rem;
+        color: var(--purple);
+        letter-spacing: 2px;
+        padding: 2px 0 4px;
+        border-top: 1px dashed rgba(167, 139, 250, 0.25);
+        margin-top: 2px;
+    }
+
+    /* 进度条 */
     .stabilization-bar {
         position: absolute; bottom: 0; left: 0;
         height: 2px; width: 0%;
@@ -206,7 +200,14 @@
         border-radius: 0 0 0 6px;
     }
 
-    /* ---------- Splash ---------- */
+    /* 卡片锁定动画 */
+    @keyframes lockPulse {
+        0% { box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7); }
+        100% { box-shadow: 0 0 0 20px rgba(0, 255, 136, 0); }
+    }
+    .face-card.locking { animation: lockPulse 0.6s ease-out; }
+
+    /* ---------- 启动屏 ---------- */
     .splash-screen {
         position: fixed; inset: 0;
         background: var(--bg-color);
@@ -219,18 +220,19 @@
     }
     .splash-screen.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
     .splash-logo {
-        font-size: 3rem; font-weight: bold; letter-spacing: 6px;
+        font-size: 3rem; font-weight: bold; letter-spacing: 8px;
         color: var(--amber); text-shadow: 0 0 20px var(--amber);
-        margin-bottom: 12px;
+        margin-bottom: 14px;
     }
-    .splash-screen h1 { font-size: 0.95rem; margin-bottom: 8px; color: var(--scan-color); letter-spacing: 2px; }
-    .splash-screen p { font-size: 0.85rem; color: #aaa; max-width: 520px; line-height: 1.6; }
+    .splash-screen h1 { font-size: 1rem; margin-bottom: 10px; color: var(--scan-color); letter-spacing: 3px; }
+    .splash-screen p { font-size: 0.82rem; color: #aaa; max-width: 520px; line-height: 1.7; }
     .splash-screen .loading {
         margin-top: 18px; color: var(--scan-color);
         font-size: 0.82rem; min-height: 1.2em;
+        letter-spacing: 1px;
     }
 
-    /* ---------- Status bar ---------- */
+    /* ---------- 状态栏 ---------- */
     .status-bar {
         position: fixed; bottom: 0; left: 0; right: 0;
         background: rgba(10, 10, 15, 0.85);
@@ -250,7 +252,7 @@
     .indicator-detalhes { color: var(--terminal-green); background-color: var(--terminal-green); box-shadow: 0 0 8px var(--terminal-green); }
     .indicator-alerta { color: var(--amber); background-color: var(--amber); box-shadow: 0 0 8px var(--amber); }
     .indicator-perigo { color: var(--red); background-color: var(--red); box-shadow: 0 0 8px var(--red); }
-    .status-text { font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; }
+    .status-text { font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45vw; letter-spacing: 1px; }
     .status-text.alerta { color: var(--amber); }
     .status-text.perigo { color: var(--red); }
 
@@ -265,7 +267,7 @@
         cursor: pointer;
         border-radius: 3px;
         transition: all 0.15s ease;
-        text-transform: uppercase;
+        letter-spacing: 1px;
         touch-action: manipulation;
     }
     .btn:active { background: rgba(0, 255, 136, 0.25); }
@@ -273,7 +275,7 @@
     .btn.danger:active { background: rgba(255, 51, 85, 0.25); }
     .btn.active { background: rgba(0, 255, 136, 0.3); }
 
-    /* ---------- Painel lateral ---------- */
+    /* ---------- 侧边栏 ---------- */
     .side-panel {
         position: fixed; top: 0; right: -360px;
         width: 340px; max-width: 92%; height: 100vh;
@@ -293,7 +295,7 @@
         border-bottom: 1px solid var(--glass-border);
         padding-bottom: 10px;
     }
-    .panel-header h2 { font-size: 0.9rem; color: var(--amber); letter-spacing: 1.5px; }
+    .panel-header h2 { font-size: 0.9rem; color: var(--amber); letter-spacing: 2px; }
     .panel-header button { background: transparent; border: none; color: var(--terminal-green); font-size: 1.3rem; cursor: pointer; padding: 4px 8px; }
 
     .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
@@ -304,32 +306,34 @@
         padding: 8px; text-align: center;
     }
     .metric-box .num { display: block; font-size: 1.3rem; color: var(--amber); }
-    .metric-box .lbl { font-size: 0.58rem; color: #7aa392; letter-spacing: 1px; text-transform: uppercase; }
+    .metric-box .lbl { font-size: 0.58rem; color: #7aa392; letter-spacing: 1px; }
 
     .historico { flex: 1; overflow-y: auto; min-height: 100px; }
-    .historico strong { display: block; margin-bottom: 6px; color: var(--amber); font-size: 0.7rem; letter-spacing: 1px; }
+    .historico strong { display: block; margin-bottom: 6px; color: var(--amber); font-size: 0.72rem; letter-spacing: 2px; }
     .historico ul { list-style: none; }
     .historico li {
-        padding: 6px 8px; border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 4px; font-size: 0.68rem;
+        padding: 7px 8px; border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 4px; font-size: 0.72rem;
         display: flex; justify-content: space-between; align-items: center;
         gap: 6px; margin-bottom: 5px;
     }
     .historico li .codigo {
-        color: var(--terminal-green); font-weight: bold;
-        background: rgba(0, 255, 136, 0.12); padding: 1px 5px; border-radius: 2px;
+        color: var(--purple); font-weight: bold;
+        background: rgba(167, 139, 250, 0.15); padding: 1px 5px; border-radius: 2px;
         letter-spacing: 1px; flex-shrink: 0;
+        font-size: 0.62rem;
     }
-    .historico li .nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; color: var(--scan-color); }
+    .historico li .nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; color: var(--terminal-green); letter-spacing: 2px; }
     .historico .del-btn { color: var(--red); background: none; border: none; cursor: pointer; font-family: inherit; font-size: 1rem; padding: 0 4px; }
 
     .disclaimer {
         position: fixed; bottom: 58px; left: 0; right: 0;
         text-align: center; font-size: 0.58rem; color: #666;
         z-index: 48; pointer-events: none; padding: 0 8px;
+        letter-spacing: 0.5px;
     }
 
-    /* Aviso de muitos rostos */
+    /* 密度警告 */
     .density-warning {
         position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 50%;
         transform: translateX(-50%) translateY(-100%);
@@ -337,7 +341,7 @@
         border: 1px solid rgba(255, 170, 0, 0.5);
         color: var(--amber);
         padding: 5px 12px; border-radius: 4px;
-        font-size: 0.65rem; letter-spacing: 1px;
+        font-size: 0.65rem; letter-spacing: 2px;
         z-index: 55;
         transition: transform 0.4s ease;
         pointer-events: none;
@@ -345,11 +349,10 @@
     .density-warning.visible { transform: translateX(-50%) translateY(0); }
 
     @media (max-width: 500px) {
-        .hud-card { width: 195px; font-size: 0.65rem; }
-        .card-body { padding: 5px 8px; }
-        .card-data { font-size: 0.58rem; }
+        .face-card { min-width: 145px; max-width: 180px; font-size: 0.66rem; }
+        .card-nickname { font-size: 1rem; letter-spacing: 2px; }
         .splash-logo { font-size: 2.2rem; }
-        .status-text { font-size: 0.65rem; max-width: 35vw; }
+        .status-text { font-size: 0.62rem; max-width: 40vw; }
         .btn { padding: 6px 8px; font-size: 0.62rem; }
     }
 </style>
@@ -357,14 +360,14 @@
 <body>
 
 <div class="splash-screen" id="splashScreen">
-    <div class="splash-logo">HUMANO.EXE</div>
-    <h1>SCANNER MULTIRROSTOS · AR-HUD</h1>
-    <p>Detecção e indexação visual em tempo real de múltiplos rostos. Todos os dossiês são sintéticos e fictícios. Nenhuma identidade civil é reconhecida.</p>
-    <div class="loading" id="loadingText">Aguardando ativação...</div>
-    <button class="btn" id="startButton" style="margin-top: 18px; padding: 12px 26px; font-size: 0.95rem;">▶ ATIVAR CÂMERA TRASEIRA</button>
+    <div class="splash-logo">人类.EXE</div>
+    <h1>多人脸扫描仪 · 增强现实界面</h1>
+    <p>实时检测和索引多张人脸。所有档案均为合成、虚构数据。不识别真实身份。</p>
+    <div class="loading" id="loadingText">等待激活...</div>
+    <button class="btn" id="startButton" style="margin-top: 18px; padding: 12px 26px; font-size: 0.95rem;">▶ 激活后置摄像头</button>
 </div>
 
-<div class="disclaimer">Simulação interativa — todos os dossiês são fictícios. Nenhum dado real é coletado ou transmitido.</div>
+<div class="disclaimer">交互模拟 — 所有档案均为虚构。不收集或传输任何真实数据。</div>
 
 <video id="videoElement" autoplay playsinline muted></video>
 <canvas id="hudCanvas"></canvas>
@@ -376,75 +379,73 @@
     <div class="vignette"></div>
 </div>
 
-<div class="density-warning" id="densityWarning">⚠ DENSIDADE MÁXIMA DE RASTREAMENTO ATINGIDA</div>
+<div class="density-warning" id="densityWarning">⚠ 已达到最大跟踪密度</div>
 
 <div class="status-bar">
     <div class="status-left">
         <div id="indicatorDot" class="indicator-dot indicator-detalhes"></div>
-        <span id="statusText" class="status-text">AGUARDANDO ATIVAÇÃO</span>
+        <span id="statusText" class="status-text">等待激活</span>
     </div>
     <div class="status-right">
         <div class="controls">
-            <button class="btn" id="togglePauseBtn">Pausar</button>
-            <button class="btn" id="switchCameraBtn">Alternar</button>
-            <button class="btn danger" id="stopCameraBtn">Encerrar</button>
+            <button class="btn" id="togglePauseBtn">暂停</button>
+            <button class="btn" id="switchCameraBtn">切换</button>
+            <button class="btn danger" id="stopCameraBtn">关闭</button>
         </div>
-        <button class="btn" id="sidePanelToggle">Histórico</button>
+        <button class="btn" id="sidePanelToggle">记录</button>
     </div>
 </div>
 
 <div class="side-panel" id="sidePanel">
     <div class="panel-header">
-        <h2>ÍNDICES DA SESSÃO</h2>
+        <h2>会话索引</h2>
         <button id="closePanelBtn">×</button>
     </div>
     <div class="metrics-grid">
-        <div class="metric-box"><span class="num" id="detecoesCount">0</span><span class="lbl">Detecções</span></div>
-        <div class="metric-box"><span class="num" id="registrosCount">0</span><span class="lbl">Indexados</span></div>
-        <div class="metric-box"><span class="num" id="trackedCount">0</span><span class="lbl">Rastreando</span></div>
-        <div class="metric-box"><span class="num" id="pendingCount">0</span><span class="lbl">Aguardando</span></div>
+        <div class="metric-box"><span class="num" id="detecoesCount">0</span><span class="lbl">检测次数</span></div>
+        <div class="metric-box"><span class="num" id="registrosCount">0</span><span class="lbl">已索引</span></div>
+        <div class="metric-box"><span class="num" id="trackedCount">0</span><span class="lbl">跟踪中</span></div>
+        <div class="metric-box"><span class="num" id="pendingCount">0</span><span class="lbl">等待确认</span></div>
     </div>
     <div class="historico">
-        <strong>DOSSIÊS CONFIRMADOS</strong>
+        <strong>已确认档案</strong>
         <ul id="historicoLista"></ul>
     </div>
-    <button class="btn" id="exportarBtn" style="width:100%;">⬇ Exportar Relatório (.json)</button>
-    <button class="btn danger" id="limparSessaoBtn" style="width:100%;">✕ Limpar Sessão</button>
+    <button class="btn" id="exportarBtn" style="width:100%;">⬇ 导出报告 (.json)</button>
+    <button class="btn danger" id="limparSessaoBtn" style="width:100%;">✕ 清除会话</button>
 </div>
 
 <script type="module">
 import { FaceDetector, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
 
 const humano = (() => {
-    /* ===================== ESTADO ===================== */
+    /* ===================== 配置 ===================== */
     const CFG = {
-        stabilizationMs: 900,       // tempo para estabilizar uma trilha antes de gerar ficha
-        trackExpiryMs: 1800,        // tempo que uma trilha sobrevive sem ser vista
-        confirmedHoldMs: 2500,      // tempo que ficha confirmada fica visível após perder rosto
-        rejectedHoldMs: 1500,       // tempo que ficha rejeitada fica visível
-        assocDistFactor: 0.6,       // fator de distância em relação ao tamanho do rosto
-        assocIouThreshold: 0.15,    // IoU mínimo para considerar mesma trilha
-        maxTracks: 10,              // limite prático de trilhas simultâneas (múltiplos rostos)
-        detectInterval: 80,         // ms entre detecções
-        typeSpeed: 18,              // ms por caractere
-        typeSpeedFast: 6
+        stabilizationMs: 900,       // 生成档案前的稳定时间
+        trackExpiryMs: 2000,        // 未看到后轨道存活时间
+        confirmedHoldMs: 3000,      // 确认后失去人脸仍保留时间
+        assocDistFactor: 0.7,       // 关联距离因子
+        assocIouThreshold: 0.12,    // IoU 阈值
+        maxTracks: 12,              // 最多同时跟踪的人脸
+        detectInterval: 80,         // 检测间隔 ms
+        typeSpeed: 22,              // 打字速度 ms/字符
+        typeSpeedFast: 8
     };
 
     const state = {
         cameraAtiva: false,
         pausado: false,
-        facingMode: { ideal: 'environment' }, // Câmera traseira por padrão
+        facingMode: { ideal: 'environment' },
         detectionCount: 0,
         recordCount: 0,
-        tracks: [],                 // trilhas visuais ativas
+        tracks: [],
         trackIdCounter: 0,
-        sessionRecords: [],         // fichas confirmadas
-        rejectedCodes: new Set(),
+        sessionRecords: [],
         indexCounter: 0,
         detectorReady: false,
         loopRunning: false,
         lastFrameTime: 0,
-        pendingDecisions: 0,        // contador de fichas aguardando decisão
+        pendingDecisions: 0,
         densityWarned: false
     };
 
@@ -481,17 +482,36 @@ const humano = (() => {
     let currentStream = null;
     let rafId = null;
 
-    /* ===================== POOLS NARRATIVOS ===================== */
-    const NOMES = ["AXIOM","NOVA","ZEUS","LYRA","ORION","VEGA","THANE","MIRA","KAIROS","ECHO","NEXUS","HELIX","QUASAR","VOID","PRISM","ONYX","RHEA","TITAN","DELTA","ATLAS"];
-    const PERFIS = ["OBSERVADOR","NÓ URBANO","AGENTE ANÔNIMO","PRESENÇA RECORRENTE","ENTIDADE NÃO CLASSIFICADA","SINAL HUMANO","ARQUIVO TEMPORÁRIO","VETOR SILENCIOSO","FRAGMENTO ATIVO","PADRÃO EMERGENTE"];
-    const CLASSES = ["ALFA","BETA","GAMA","DELTA","ÉPSILON","ZETA","ÔMEGA"];
-    const ORIGENS = ["SETOR-04","ZONA-L","EIXO-7","NÍVEL-B2","PORTAL-X","FRENTE-9","SEGMENTO-M","CAMADA-3"];
-    const TAGS = ["estável","volátil","latente","ativo","residual","emergente"];
-    const ANOMALIAS = ["— nenhuma —","micro-oscilação","padrão atípico","sinal residual","fragmento mnemônico","ruído de leitura"];
+    /* ===================== 中文昵称池 ===================== */
+    const APELIDOS = [
+        "行者", "影客", "夜巡", "云游", "默观", "孤鸿", "星尘", "雪原",
+        "临风", "观澜", "沉舟", "寒江", "无相", "见山", "听雨", "守夜",
+        "问天", "观复", "空谷", "明镜", "静水", "流沙", "浮生", "长歌",
+        "雪隐", "风语", "尘缘", "月影", "墨客", "青衫"
+    ];
+
+    /* ===================== 中文扫描序列 ===================== */
+    const SCAN_SEQUENCE = [
+        "检测到人脸信号",
+        "分析轮廓中…",
+        "稳定视觉轨迹…",
+        "查询合成矩阵…",
+        "生成临时标识…",
+        "等待操作员确认"
+    ];
 
     const rand = arr => arr[Math.floor(Math.random() * arr.length)];
     const randInt = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
     const randHex = len => { let s = ''; const c = 'ABCDEF0123456789'; for (let i = 0; i < len; i++) s += c[Math.floor(Math.random() * c.length)]; return s; };
+
+    /* 每个轨道唯一的中文昵称 */
+    function gerarApelidoUnico() {
+        const usados = new Set(state.tracks.map(t => t.apelido).filter(Boolean));
+        const disponiveis = APELIDOS.filter(a => !usados.has(a));
+        if (disponiveis.length > 0) return rand(disponiveis);
+        // fallback: 加数字后缀
+        return rand(APELIDOS) + "-" + randInt(10, 99);
+    }
 
     function gerarCodigoIndice() {
         state.indexCounter++;
@@ -502,26 +522,7 @@ const humano = (() => {
         return `${letra}${num}`;
     }
 
-    function gerarDadosDossie() {
-        const nomeBase = rand(NOMES);
-        const num = randInt(100, 999);
-        const nome = `${nomeBase}-${num}`;
-        return {
-            nome,
-            idade: randInt(18, 72),
-            email: `${nome.toLowerCase().replace(/[^a-z0-9]/g, '.')}@void.invalid`,
-            documento: `ID-DOC-${randHex(8)}`,
-            hash: randHex(12) + '-' + randHex(12),
-            perfil: rand(PERFIS),
-            classe: rand(CLASSES),
-            origem: rand(ORIGENS),
-            tag: rand(TAGS),
-            anomalia: rand(ANOMALIAS),
-            score: (Math.random() * (99.9 - 82.0) + 82.0).toFixed(1)
-        };
-    }
-
-    /* ===================== INIT ===================== */
+    /* ===================== 初始化 ===================== */
     function init() {
         el.startButton.addEventListener('click', iniciarSistema);
         el.togglePauseBtn.addEventListener('click', alternarPausa);
@@ -538,14 +539,14 @@ const humano = (() => {
 
     async function iniciarSistema() {
         el.startButton.disabled = true;
-        el.startButton.textContent = '⏳ Carregando...';
-        el.loadingText.textContent = 'Carregando modelo de detecção facial...';
+        el.startButton.textContent = '⏳ 加载中...';
+        el.loadingText.textContent = '正在加载人脸检测模型…';
 
         try {
             const vision = await FilesetResolver.forVisionTasks(
                 "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
             );
-            el.loadingText.textContent = 'Modelo WASM carregado. Inicializando detector...';
+            el.loadingText.textContent = 'WASM 模型已加载。初始化检测器…';
 
             faceDetector = await FaceDetector.createFromOptions(vision, {
                 baseOptions: {
@@ -554,21 +555,21 @@ const humano = (() => {
                 },
                 runningMode: "VIDEO",
                 minDetectionConfidence: 0.45,
-                maxNumFaces: 10  // ✅ PERMITE DETECTAR ATÉ 10 ROSTOS POR FRAME
+                maxNumFaces: 12
             });
 
             state.detectorReady = true;
-            el.loadingText.textContent = 'Detector pronto. Iniciando câmera traseira...';
+            el.loadingText.textContent = '检测器就绪。正在启动后置摄像头…';
             await iniciarCamera();
             el.splashScreen.classList.add('hidden');
             ajustarCanvas();
             iniciarLoop();
         } catch (e) {
-            console.error("Erro na inicialização:", e);
-            el.loadingText.textContent = '❌ Erro: ' + e.message;
+            console.error("初始化错误:", e);
+            el.loadingText.textContent = '❌ 错误: ' + e.message;
             el.startButton.disabled = false;
-            el.startButton.textContent = '↻ Tentar Novamente';
-            atualizarStatus("ERRO: " + e.message, 'perigo');
+            el.startButton.textContent = '↻ 重试';
+            atualizarStatus("错误: " + e.message, 'perigo');
         }
     }
 
@@ -594,9 +595,9 @@ const humano = (() => {
             });
             await video.play();
             state.cameraAtiva = true;
-            atualizarStatus("DETECTANDO MÚLTIPLOS ROSTOS...", 'detalhes');
+            atualizarStatus("正在检测多张人脸…", 'detalhes');
         } catch (err) {
-            throw new Error("Câmera indisponível: " + err.message);
+            throw new Error("摄像头不可用: " + err.message);
         }
     }
 
@@ -605,11 +606,10 @@ const humano = (() => {
         const h = video.videoHeight || 480;
         canvas.width = w;
         canvas.height = h;
-        // Reposiciona cards após resize
         requestAnimationFrame(renderLoop);
     }
 
-    /* ===================== LOOP PRINCIPAL ===================== */
+    /* ===================== 主循环 ===================== */
     function iniciarLoop() {
         if (state.loopRunning) return;
         state.loopRunning = true;
@@ -617,24 +617,21 @@ const humano = (() => {
             rafId = requestAnimationFrame(tick);
             if (!state.cameraAtiva) return;
 
-            // 1) Detecção (limitada por tempo)
             const now = performance.now();
             if (!state.pausado && now - state.lastFrameTime > CFG.detectInterval && video.readyState >= 2 && faceDetector) {
                 state.lastFrameTime = now;
                 try {
                     const results = faceDetector.detectForVideo(video, now);
                     processarDeteccoes(results.detections || []);
-                } catch (e) { /* silencioso */ }
+                } catch (e) { /* silent */ }
             }
-
-            // 2) Atualiza posições e expira trilhas a cada frame
             updateTracks();
             renderLoop();
         };
         rafId = requestAnimationFrame(tick);
     }
 
-    /* ===================== TRACKING ===================== */
+    /* ===================== 跟踪 ===================== */
     function iou(a, b) {
         const x1 = Math.max(a.x, b.x);
         const y1 = Math.max(a.y, b.y);
@@ -650,23 +647,19 @@ const humano = (() => {
     function processarDeteccoes(detections) {
         const now = Date.now();
         state.detectionCount += detections.length;
-
-        // Marca todas as trilhas como "não vistas" neste frame
         state.tracks.forEach(t => t.seenThisFrame = false);
 
-        const novasDeteccoes = detections.map(d => ({
+        const novas = detections.map(d => ({
             x: d.boundingBox.originX,
             y: d.boundingBox.originY,
             w: d.boundingBox.width,
             h: d.boundingBox.height,
             cx: d.boundingBox.originX + d.boundingBox.width / 2,
-            cy: d.boundingBox.originY + d.boundingBox.height / 2,
-            score: d.categories?.[0]?.score ?? d.score ?? 0.9
+            cy: d.boundingBox.originY + d.boundingBox.height / 2
         }));
 
-        // 1) Associar cada detecção à trilha existente mais próxima
         const usadas = new Set();
-        novasDeteccoes.forEach(det => {
+        novas.forEach(det => {
             let best = null, bestScore = -Infinity;
             state.tracks.forEach(t => {
                 if (usadas.has(t.id)) return;
@@ -676,7 +669,6 @@ const humano = (() => {
                 const overlap = iou(t.box(), det);
                 const overlapOk = overlap > CFG.assocIouThreshold;
                 if (!distOk && !overlapOk) return;
-                // Score: penaliza distância, favorece overlap
                 const score = overlap * 2 - (dist / sizeRef);
                 if (score > bestScore) { bestScore = score; best = t; }
             });
@@ -685,8 +677,7 @@ const humano = (() => {
                 best.seenThisFrame = true;
                 usadas.add(best.id);
             } else {
-                // Nova trilha
-                if (state.tracks.length >= CFG.maxTracks) return; // limite
+                if (state.tracks.length >= CFG.maxTracks) return;
                 const newTrack = criarTrack(det);
                 state.tracks.push(newTrack);
                 usadas.add(newTrack.id);
@@ -696,22 +687,15 @@ const humano = (() => {
             }
         });
 
-        // 2) Trilhas não vistas → incrementam tempo sem ser vistas
         state.tracks.forEach(t => {
-            if (!t.seenThisFrame) t.lastSeen = t.lastSeen || now;
-            else t.lastSeen = now;
+            if (t.seenThisFrame) t.lastSeen = now;
         });
 
-        // 3) Remoção controlada de trilhas expiradas
+        // 移除过期轨道
         state.tracks = state.tracks.filter(t => {
-            if (t.state === 'rejected') {
-                if (now - t.stateChangedAt > CFG.rejectedHoldMs) { removerCard(t); return false; }
-                return true;
-            }
-            const expirado = now - t.lastSeen > (t.state === 'confirmed' ? CFG.confirmedHoldMs : CFG.trackExpiryMs);
+            const holdMs = t.state === 'confirmed' ? CFG.confirmedHoldMs : CFG.trackExpiryMs;
+            const expirado = now - t.lastSeen > holdMs;
             if (expirado) {
-                // Se ainda é pending, mantém por mais tempo
-                if (t.state === 'pending' && now - t.lastSeen < CFG.trackExpiryMs * 2) return true;
                 removerCard(t);
                 return false;
             }
@@ -733,18 +717,17 @@ const humano = (() => {
             createdAt: Date.now(),
             lastSeen: Date.now(),
             stabilized: false,
-            state: 'scanning',           // scanning | pending | confirmed | rejected
+            state: 'scanning',
             stateChangedAt: Date.now(),
-            data: null,
+            apelido: null,
+            codigo: null,
             card: null,
             cardEls: null,
-            scanLines: [],
             scanLineIdx: 0,
             typewriterTimer: null,
             seenThisFrame: true,
             box() { return { x: this.x, y: this.y, w: this.w, h: this.h }; },
             updateFromDetection(d) {
-                // Suavização leve para evitar jitter
                 this.x = this.x * 0.55 + d.x * 0.45;
                 this.y = this.y * 0.55 + d.y * 0.45;
                 this.w = this.w * 0.55 + d.w * 0.45;
@@ -760,30 +743,29 @@ const humano = (() => {
     function updateTracks() {
         const now = Date.now();
         state.tracks.forEach(t => {
-            // Estabilização
             if (!t.stabilized && t.state === 'scanning' && now - t.createdAt > CFG.stabilizationMs) {
                 t.stabilized = true;
                 iniciarFicha(t);
             }
         });
-        requestAnimationFrame(renderLoop);
     }
 
-    /* ===================== CARTÕES HUD ===================== */
+    /* ===================== 卡片（锚定在脸上方）===================== */
     function criarCard(track) {
         const card = document.createElement('div');
-        card.className = 'hud-card';
+        card.className = 'face-card';
         card.dataset.trackId = track.id;
 
         card.innerHTML = `
             <div class="card-header">
                 <span class="card-id">${track.code}</span>
-                <span class="card-status scanning">SCAN</span>
+                <span class="card-status scanning">扫描</span>
             </div>
             <div class="card-body">
                 <div class="card-terminal"></div>
-                <div class="card-data-wrap"></div>
-                <div class="card-actions-wrap"></div>
+                <div class="card-nickname-wrap"></div>
+                <div class="card-code-wrap"></div>
+                <div class="card-hint-wrap"></div>
             </div>
             <div class="stabilization-bar"></div>
         `;
@@ -792,64 +774,62 @@ const humano = (() => {
         track.cardEls = {
             status: card.querySelector('.card-status'),
             terminal: card.querySelector('.card-terminal'),
-            dataWrap: card.querySelector('.card-data-wrap'),
-            actionsWrap: card.querySelector('.card-actions-wrap'),
+            nicknameWrap: card.querySelector('.card-nickname-wrap'),
+            codeWrap: card.querySelector('.card-code-wrap'),
+            hintWrap: card.querySelector('.card-hint-wrap'),
             bar: card.querySelector('.stabilization-bar')
         };
-        // Animação de entrada
+
+        // 点击卡片任何位置 → 确认
+        card.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (track.state === 'pending') {
+                confirmarTrack(track);
+            }
+        });
+
         requestAnimationFrame(() => card.classList.add('visible'));
     }
 
     function removerCard(track) {
         if (track.typewriterTimer) clearTimeout(track.typewriterTimer);
         if (track.card) {
-            track.card.classList.add('lost');
+            track.card.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+            track.card.style.opacity = '0';
+            track.card.style.transform = 'translate(-50%, -120%) scale(0.85)';
             const card = track.card;
-            setTimeout(() => card.remove(), 400);
+            setTimeout(() => card.remove(), 450);
         }
     }
 
-    /* ===================== FICHA / DOSSIÊ POR TRILHA ===================== */
-    const SCAN_SEQUENCE = [
-        { text: '> sinal visual detectado', cls: 'ok' },
-        { text: '  analisando contornos...', cls: '' },
-        { text: '  estabilizando trilha visual...', cls: '' },
-        { text: '  consultando matriz sintética...', cls: 'cipher' },
-        { text: '  gerando identificador...', cls: 'cipher' },
-        { text: '  atribuindo rótulo provisório...', cls: 'cipher' },
-        { text: '  ficha aguardando confirmação', cls: 'warn' }
-    ];
-
+    /* ===================== 档案生成 ===================== */
     function iniciarFicha(track) {
         if (track.state !== 'scanning') return;
         track.state = 'pending';
         track.stateChangedAt = Date.now();
-        track.data = gerarDadosDossie();
-        track.data.codigo = gerarCodigoIndice();
+        track.apelido = gerarApelidoUnico();
+        track.codigo = gerarCodigoIndice();
 
         const els = track.cardEls;
-        els.status.textContent = 'PROCESSANDO';
+        els.status.textContent = '处理中';
         els.status.classList.remove('scanning');
         els.status.classList.add('pending');
-
-        // Barra de progresso total
         els.bar.style.width = '100%';
 
-        // Digita as linhas sequencialmente
         track.scanLineIdx = 0;
         digitarProximaLinha(track);
     }
 
     function digitarProximaLinha(track) {
-        if (!track.card || track.state === 'confirmed' || track.state === 'rejected') return;
+        if (!track.card || track.state === 'confirmed') return;
         const seq = SCAN_SEQUENCE;
         if (track.scanLineIdx >= seq.length) {
             finalizarFicha(track);
             return;
         }
-        const item = seq[track.scanLineIdx];
+        const texto = seq[track.scanLineIdx];
         const line = document.createElement('div');
-        line.className = 'term-line ' + (item.cls || '');
+        line.className = 'term-line';
         track.cardEls.terminal.appendChild(line);
 
         let i = 0;
@@ -858,15 +838,15 @@ const humano = (() => {
         line.appendChild(cursor);
 
         const tick = () => {
-            if (!track.card || track.state === 'confirmed' || track.state === 'rejected') return;
-            if (i < item.text.length) {
-                cursor.before(document.createTextNode(item.text[i]));
+            if (!track.card || track.state === 'confirmed') return;
+            if (i < texto.length) {
+                cursor.before(document.createTextNode(texto[i]));
                 i++;
-                track.typewriterTimer = setTimeout(tick, CFG.typeSpeed + Math.random() * 14);
+                track.typewriterTimer = setTimeout(tick, CFG.typeSpeed + Math.random() * 16);
             } else {
                 cursor.remove();
                 track.scanLineIdx++;
-                track.typewriterTimer = setTimeout(() => digitarProximaLinha(track), 60);
+                track.typewriterTimer = setTimeout(() => digitarProximaLinha(track), 80);
             }
         };
         tick();
@@ -874,139 +854,75 @@ const humano = (() => {
 
     function finalizarFicha(track) {
         if (track.state !== 'pending') return;
-        const d = track.data;
         const els = track.cardEls;
 
-        els.status.textContent = 'AGUARDANDO';
-        els.status.classList.remove('pending');
-        els.status.classList.add('pending');
+        els.status.textContent = '等待确认';
 
-        // Mostra código + dados
-        els.dataWrap.innerHTML = `
-            <div class="card-data">
-                <span class="lbl">NOME</span><span class="val">${d.nome}</span>
-                <span class="lbl">IDADE</span><span class="val">${d.idade}a</span>
-                <span class="lbl">PERFIL</span><span class="val">${d.perfil}</span>
-                <span class="lbl">CLASSE</span><span class="val">${d.classe}</span>
-                <span class="lbl">ORIGEM</span><span class="val">${d.origem}</span>
-                <span class="lbl">TAG</span><span class="val">${d.tag}</span>
-                <span class="lbl">SCORE*</span><span class="val score">${d.score}%</span>
-            </div>
-            <div class="card-index-code">
-                <span class="code-label">CÓDIGO DE ÍNDICE</span>
-                ${d.codigo}
+        // 清除打字机区域，显示昵称 + 代码
+        els.terminal.innerHTML = '';
+        els.nicknameWrap.innerHTML = `
+            <div class="card-nickname">
+                <span class="card-nickname-label">昵称</span>
+                ${track.apelido}
             </div>
         `;
-
-        // Botões
-        els.actionsWrap.innerHTML = '';
-        const actions = document.createElement('div');
-        actions.className = 'card-actions';
-        const btnOk = document.createElement('button');
-        btnOk.className = 'action-btn';
-        btnOk.textContent = '◉ Indexar';
-        const btnNo = document.createElement('button');
-        btnNo.className = 'action-btn danger';
-        btnNo.textContent = '✕ Rejeitar';
-        btnOk.addEventListener('click', (e) => { e.stopPropagation(); confirmarTrack(track); });
-        btnNo.addEventListener('click', (e) => { e.stopPropagation(); rejeitarTrack(track); });
-        actions.append(btnNo, btnOk);
-        els.actionsWrap.appendChild(actions);
+        els.codeWrap.innerHTML = `<div class="card-code">索引 ${track.codigo}</div>`;
+        els.hintWrap.innerHTML = `<div class="card-hint">点击卡片确认</div>`;
 
         state.pendingDecisions++;
         atualizarMetricas();
     }
 
     function confirmarTrack(track) {
-        if (track.state === 'confirmed' || track.state === 'rejected') return;
-        const d = track.data;
-        if (!d) return;
+        if (track.state !== 'pending') return;
         track.state = 'confirmed';
         track.stateChangedAt = Date.now();
+        track.card.classList.add('confirmed', 'locking');
+        setTimeout(() => track.card.classList.remove('locking'), 700);
+
+        const els = track.cardEls;
+        els.status.textContent = '已索引';
+        els.status.classList.remove('pending');
+        els.status.classList.add('confirmed');
+        els.hintWrap.innerHTML = '';
+        els.codeWrap.innerHTML = `<div class="card-code">✓ 索引 ${track.codigo}</div>`;
 
         const registroId = `HUM-${String(state.sessionRecords.length + 1).padStart(6, '0')}`;
         const ficha = {
             id: registroId,
             trackCode: track.code,
-            codigo: d.codigo,
-            nome: d.nome,
-            idade: d.idade,
-            email: d.email,
-            documento: d.documento,
-            perfil: d.perfil,
-            classe: d.classe,
-            origem: d.origem,
-            tag: d.tag,
-            score: d.score,
-            anomalia: d.anomalia,
-            hash: d.hash,
-            dataHora: new Date().toLocaleString('pt-BR'),
-            status: "INDEXADO"
+            apelido: track.apelido,
+            codigo: track.codigo,
+            dataHora: new Date().toLocaleString('zh-CN'),
+            status: "已索引"
         };
         state.sessionRecords.push(ficha);
         state.recordCount = state.sessionRecords.length;
         salvarHistorico();
         renderizarHistorico();
 
-        const els = track.cardEls;
-        els.status.textContent = 'INDEXADO';
-        els.status.classList.remove('pending');
-        els.status.classList.add('confirmed');
-        els.actionsWrap.innerHTML = '';
-        const okLine = document.createElement('div');
-        okLine.className = 'term-line ok';
-        okLine.textContent = `> ✓ indexado · ${d.codigo}`;
-        els.terminal.appendChild(okLine);
-        track.card.classList.add('confirmed');
-
         state.pendingDecisions = Math.max(0, state.pendingDecisions - 1);
         atualizarMetricas();
         atualizarStatusPorEstado();
     }
 
-    function rejeitarTrack(track) {
-        if (track.state === 'confirmed' || track.state === 'rejected') return;
-        track.state = 'rejected';
-        track.stateChangedAt = Date.now();
-        if (track.data) state.rejectedCodes.add(track.data.codigo);
-
-        const els = track.cardEls;
-        els.status.textContent = 'REJEITADO';
-        els.status.classList.remove('pending');
-        els.status.classList.add('rejected');
-        els.actionsWrap.innerHTML = '';
-        const rejLine = document.createElement('div');
-        rejLine.className = 'term-line err';
-        rejLine.textContent = '> ✕ rejeitado pelo operador';
-        els.terminal.appendChild(rejLine);
-        track.card.classList.add('rejected');
-
-        state.pendingDecisions = Math.max(0, state.pendingDecisions - 1);
-        atualizarMetricas();
-        atualizarStatusPorEstado();
-    }
-
-    /* ===================== RENDER ===================== */
+    /* ===================== 渲染 ===================== */
     function renderLoop() {
-        // 1) Canvas
         const w = canvas.width, h = canvas.height;
         ctx.clearRect(0, 0, w, h);
 
         state.tracks.forEach(t => {
             let color, dash;
             if (t.state === 'confirmed') { color = '#00ff88'; dash = [4, 6]; }
-            else if (t.state === 'rejected') { color = '#ff3355'; dash = [2, 8]; }
             else if (t.state === 'pending') { color = '#ffaa00'; dash = [5, 5]; }
             else { color = '#00ffcc'; dash = [3, 8]; }
 
-            // Caixa
             ctx.strokeStyle = color;
             ctx.lineWidth = 1.8;
             ctx.setLineDash(dash);
             ctx.strokeRect(t.x, t.y, t.w, t.h);
             ctx.setLineDash([]);
 
-            // Cantos
             ctx.lineWidth = 2;
             ctx.strokeStyle = color;
             const m = Math.min(10, t.w * 0.15, t.h * 0.15);
@@ -1017,27 +933,18 @@ const humano = (() => {
             ctx.moveTo(t.x + t.w - m, t.y + t.h); ctx.lineTo(t.x + t.w, t.y + t.h); ctx.lineTo(t.x + t.w, t.y + t.h - m);
             ctx.stroke();
 
-            // Label acima
             ctx.fillStyle = 'rgba(10, 10, 15, 0.8)';
             ctx.fillRect(t.x, t.y - 18, 92, 16);
             ctx.fillStyle = color;
             ctx.font = "600 11px monospace";
             ctx.textAlign = "left";
             ctx.fillText(t.code, t.x + 4, t.y - 6);
-
-            // Ponto confirmado
-            if (t.state === 'confirmed') {
-                ctx.fillStyle = color;
-                ctx.beginPath();
-                ctx.arc(t.x + t.w - 8, t.y + t.h - 8, 4.5, 0, 2 * Math.PI);
-                ctx.fill();
-            }
         });
 
-        // 2) Posições dos cards
         posicionarCards();
     }
 
+    /* 卡片锚定在脸上方 */
     function posicionarCards() {
         const vW = video.clientWidth || window.innerWidth;
         const vH = video.clientHeight || window.innerHeight;
@@ -1046,79 +953,66 @@ const humano = (() => {
         const scaleX = vW / cW;
         const scaleY = vH / cH;
 
-        // Espaço reservado para a status bar
-        const bottomSafe = 70;
+        const topSafe = 8;
 
-        // Ordena por y para evitar sobreposição
-        const tracksSorted = [...state.tracks].sort((a, b) => a.cy - b.cy);
-
-        // Ocupação: distribuímos os cards em colunas à direita e esquerda
-        const usedRects = [];
-
-        tracksSorted.forEach(t => {
+        state.tracks.forEach(t => {
             const card = t.card;
             if (!card) return;
-            const cardW = card.offsetWidth || 230;
-            const cardH = card.offsetHeight || 200;
+            const cardW = card.offsetWidth || 180;
+            const cardH = card.offsetHeight || 90;
 
             const faceX = t.cx * scaleX;
             const faceY = t.cy * scaleY;
             const faceW = t.w * scaleX;
             const faceH = t.h * scaleY;
 
-            // Tenta posicionar à direita do rosto
-            let left = faceX + faceW / 2 + 12;
-            let top = faceY - cardH / 2;
+            // 卡片中心对齐人脸水平中心
+            // 卡片底部位于人脸顶部上方 6px
+            let left = faceX;
+            let top = (faceY - faceH / 2) - 6;
 
-            // Se não cabe à direita, tenta à esquerda
-            if (left + cardW > vW - 8) {
-                left = faceX - faceW / 2 - cardW - 12;
-            }
-            // Se ainda não cabe, centraliza abaixo
-            if (left < 8) {
-                left = Math.max(8, Math.min(vW - cardW - 8, faceX - cardW / 2));
-                top = faceY + faceH / 2 + 8;
-            }
+            // 限制水平范围
+            const halfW = cardW / 2;
+            if (left - halfW < 4) left = 4 + halfW;
+            if (left + halfW > vW - 4) left = vW - 4 - halfW;
 
-            // Limites
-            if (top < 8) top = 8;
-            if (top + cardH > vH - bottomSafe) top = vH - bottomSafe - cardH;
-            if (left < 8) left = 8;
-            if (left + cardW > vW - 8) left = vW - cardW - 8;
-
-            // Evita sobreposição empurrando para baixo
-            let rect = { x: left, y: top, w: cardW, h: cardH };
-            let tentativas = 0;
-            while (usedRects.some(r => !(rect.x + rect.w < r.x || rect.x > r.x + r.w || rect.y + rect.h < r.y || rect.y > r.y + r.h)) && tentativas < 12) {
-                rect.y += 18;
-                if (rect.y + rect.h > vH - bottomSafe) {
-                    rect.y = 8;
-                    rect.x += cardW + 8;
-                    if (rect.x + cardW > vW - 8) rect.x = 8;
+            // 限制垂直：如果卡片顶部超出屏幕，翻转到人脸下方
+            if (top - cardH < topSafe) {
+                // 翻转到下方
+                top = (faceY + faceH / 2) + cardH + 6;
+                card.style.transform = 'translate(-50%, 0) scale(1)';
+                if (t.state === 'confirmed') {
+                    card.style.transform = 'translate(-50%, 0) scale(0.85)';
                 }
-                tentativas++;
+            } else {
+                card.style.transform = 'translate(-50%, -100%) scale(1)';
+                if (t.state === 'confirmed') {
+                    card.style.transform = 'translate(-50%, -100%) scale(0.85)';
+                }
             }
-            usedRects.push(rect);
 
-            card.style.left = rect.x + 'px';
-            card.style.top = rect.y + 'px';
+            if (top + cardH > vH - 60) top = vH - 60 - cardH;
+            if (top < topSafe) top = topSafe;
+
+            card.style.left = left + 'px';
+            card.style.top = top + 'px';
         });
     }
 
-    /* ===================== STATUS ===================== */
+    /* ===================== 状态 ===================== */
     function atualizarStatusPorEstado() {
         const active = state.tracks.filter(t => t.state !== 'rejected');
         const pend = state.tracks.filter(t => t.state === 'pending').length;
         const conf = state.tracks.filter(t => t.state === 'confirmed').length;
 
         if (active.length === 0) {
-            atualizarStatus("SEM ROSTO DETECTADO", 'detalhes');
+            atualizarStatus("未检测到人脸", 'detalhes');
         } else if (pend > 0) {
-            atualizarStatus(`${pend} FICHA(S) AGUARDANDO DECISÃO`, 'alerta');
+            atualizarStatus(`${pend} 个档案等待确认`, 'alerta');
         } else if (active.length > 1) {
-            atualizarStatus(`RASTREANDO ${active.length} ROSTOS · ${conf} INDEXADO(S)`, 'alerta');
+            atualizarStatus(`跟踪 ${active.length} 张人脸 · ${conf} 已索引`, 'alerta');
         } else {
-            atualizarStatus(`RASTREANDO 1 ROSTO · ${conf} INDEXADO(S)`, 'detalhes');
+            atualizarStatus(`跟踪 1 张人脸 · ${conf} 已索引`, 'detalhes');
         }
     }
 
@@ -1147,13 +1041,13 @@ const humano = (() => {
         setTimeout(() => el.densityWarning.classList.remove('visible'), 3500);
     }
 
-    /* ===================== CONTROLES ===================== */
+    /* ===================== 控制 ===================== */
     function alternarPausa() {
         if (!state.cameraAtiva) return;
         state.pausado = !state.pausado;
-        el.togglePauseBtn.textContent = state.pausado ? "Retomar" : "Pausar";
+        el.togglePauseBtn.textContent = state.pausado ? "继续" : "暂停";
         el.togglePauseBtn.classList.toggle('active', state.pausado);
-        atualizarStatus(state.pausado ? "INDEXAÇÃO PAUSADA" : "RETOMANDO DETECÇÃO...", state.pausado ? 'alerta' : 'detalhes');
+        atualizarStatus(state.pausado ? "索引已暂停" : "继续检测…", state.pausado ? 'alerta' : 'detalhes');
     }
 
     async function alternarCamera() {
@@ -1161,16 +1055,15 @@ const humano = (() => {
         state.facingMode = state.facingMode.ideal === 'environment'
             ? { ideal: 'user' }
             : { ideal: 'environment' };
-        atualizarStatus("TROCANDO CÂMERA...", 'alerta');
+        atualizarStatus("切换摄像头…", 'alerta');
         try {
             await iniciarCamera();
-            // Limpa trilhas ao trocar câmera (rostos mudam)
             state.tracks.forEach(t => removerCard(t));
             state.tracks = [];
             state.pendingDecisions = 0;
             atualizarMetricas();
         } catch (e) {
-            atualizarStatus("ERRO AO TROCAR CÂMERA", 'perigo');
+            atualizarStatus("切换摄像头失败", 'perigo');
         }
     }
 
@@ -1182,20 +1075,20 @@ const humano = (() => {
         video.srcObject = null;
         state.cameraAtiva = false;
         state.pausado = false;
-        el.togglePauseBtn.textContent = "Pausar";
+        el.togglePauseBtn.textContent = "暂停";
         el.togglePauseBtn.classList.remove('active');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         state.tracks.forEach(t => removerCard(t));
         state.tracks = [];
         state.pendingDecisions = 0;
         atualizarMetricas();
-        atualizarStatus("CÂMERA ENCERRADA", 'perigo');
+        atualizarStatus("摄像头已关闭", 'perigo');
     }
 
     function abrirPainel() { el.sidePanel.classList.add('open'); renderizarHistorico(); }
     function fecharPainel() { el.sidePanel.classList.remove('open'); }
 
-    /* ===================== PERSISTÊNCIA ===================== */
+    /* ===================== 持久化 ===================== */
     function salvarHistorico() {
         try { localStorage.setItem('humanoSessionRecords', JSON.stringify(state.sessionRecords)); }
         catch (e) { console.warn(e); }
@@ -1227,13 +1120,13 @@ const humano = (() => {
     function renderizarHistorico() {
         el.historicoLista.innerHTML = '';
         if (state.sessionRecords.length === 0) {
-            el.historicoLista.innerHTML = '<li style="text-align:center; color:#666; justify-content:center;">Nenhum índice.</li>';
+            el.historicoLista.innerHTML = '<li style="text-align:center; color:#666; justify-content:center;">暂无索引。</li>';
             return;
         }
         state.sessionRecords.slice().reverse().forEach(record => {
             const li = document.createElement('li');
             const cod = document.createElement('span'); cod.className = 'codigo'; cod.textContent = record.codigo;
-            const nome = document.createElement('span'); nome.className = 'nome'; nome.textContent = record.nome;
+            const nome = document.createElement('span'); nome.className = 'nome'; nome.textContent = record.apelido;
             const btn = document.createElement('button'); btn.className = 'del-btn'; btn.textContent = '×';
             btn.addEventListener('click', () => removerRegistro(record.id));
             li.append(cod, nome, btn);
@@ -1250,31 +1143,30 @@ const humano = (() => {
     }
 
     function limparSessao() {
-        if (!confirm("Limpar toda a sessão? Esta ação não pode ser desfeita.")) return;
+        if (!confirm("清除整个会话？此操作无法撤销。")) return;
         state.sessionRecords = [];
         state.detectionCount = 0;
         state.recordCount = 0;
         state.indexCounter = 0;
-        state.rejectedCodes.clear();
         state.tracks.forEach(t => removerCard(t));
         state.tracks = [];
         state.pendingDecisions = 0;
         localStorage.removeItem('humanoSessionRecords');
         atualizarMetricas();
         renderizarHistorico();
-        atualizarStatus("SESSÃO LIMPA", 'detalhes');
+        atualizarStatus("会话已清除", 'detalhes');
     }
 
     function exportarRelatorio() {
-        if (state.sessionRecords.length === 0) { alert("Nenhum registro."); return; }
+        if (state.sessionRecords.length === 0) { alert("没有记录。"); return; }
         const conteudo = {
-            titulo: "HUMANO.EXE — RELATÓRIO DE INDEXAÇÃO",
-            descricao: "Dados sintéticos e fictícios. Não representam identificação biométrica real. Nenhuma imagem é armazenada ou transmitida.",
+            titulo: "人类.EXE — 索引报告",
+            descricao: "合成、虚构数据。不代表真实身份。不存储或传输任何图像。",
             timestamp: new Date().toISOString(),
             metricas: {
-                deteccoesFaciais: state.detectionCount,
-                registrosIndexados: state.recordCount,
-                trilhasCriadas: state.trackIdCounter
+                检测次数: state.detectionCount,
+                已索引: state.recordCount,
+                创建轨迹: state.trackIdCounter
             },
             registros: state.sessionRecords
         };
