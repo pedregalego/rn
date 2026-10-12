@@ -3,12 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; media-src * 'self'; img-src * 'self' data:;">
-    <title>HUMANO.EXEE</title>
-    <!-- MediaPipe Face Detection Libraries (CDN) -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection@0.4/face_detection.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.4/camera_utils.js"></script>
-    <!-- Estilos -->
+    <title>HUMANO.EXE</title>
     <style>
         /* --- RESET E VARIÁVEIS --- */
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -46,12 +41,13 @@
             height: 100%;
             pointer-events: none;
             overflow: hidden;
+            z-index: 5;
         }
         .scanline {
             position: absolute;
             width: 100%;
             height: 2px;
-            background: linear-gradient(90, transparent, var(--terminal-green), transparent);
+            background: linear-gradient(90deg, transparent, var(--terminal-green), transparent);
             animation: scan 6s linear infinite;
             opacity: 0.5;
         }
@@ -79,6 +75,10 @@
         }
         #overlay {
             pointer-events: none;
+            z-index: 4;
+        }
+        #videoElement {
+            z-index: 1;
         }
 
         /* Status e Indicadores */
@@ -95,35 +95,38 @@
             align-items: center;
             z-index: 10;
             backdrop-filter: blur(5px);
+            gap: 8px;
+            flex-wrap: wrap;
         }
         .status-left, .status-right { display: flex; align-items: center; gap: 12px; }
         .indicator-dot {
             width: 10px; height: 10px;
             border-radius: 50%;
             border: 1px solid currentColor;
+            flex-shrink: 0;
         }
-        .indicator-detalhes { color: var(--terminal-green); }
-        .indicator-alerta { background-color: var(--amber); box-shadow: 0 0 8px var(--amber); }
-        .indicator-perigo { background-color: var(--red); animation: pulse 1.5s infinite; }
+        .indicator-detalhes { color: var(--terminal-green); background-color: var(--terminal-green); box-shadow: 0 0 8px var(--terminal-green); }
+        .indicator-alerta { color: var(--amber); background-color: var(--amber); box-shadow: 0 0 8px var(--amber); }
+        .indicator-perigo { color: var(--red); background-color: var(--red); box-shadow: 0 0 8px var(--red); animation: pulse 1.5s infinite; }
         @keyframes pulse { 50% { opacity: 0.5; } }
         
         .status-text {
-            font-size: 1rem;
+            font-size: 0.85rem;
             color: var(--terminal-green);
             white-space: nowrap;
         }
-        .status-text .alerta { color: var(--amber); }
-        .status-text .perigo { color: var(--red); }
+        .status-text.alerta { color: var(--amber); }
+        .status-text.perigo { color: var(--red); }
 
         /* Botões de Controle */
-        .controls { display: flex; gap: 8px; }
+        .controls { display: flex; gap: 8px; flex-wrap: wrap; }
         .btn {
             background: rgba(0, 255, 136, 0.1);
             border: 1px solid var(--border-color);
             color: var(--terminal-green);
             padding: 8px 14px;
             font-family: inherit;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             cursor: pointer;
             transition: var(--transition-fast);
             border-radius: 4px;
@@ -141,7 +144,8 @@
             position: fixed;
             top: 0;
             right: -400px;
-            width: 320px;
+            width: 340px;
+            max-width: 90%;
             height: 100vh;
             background: linear-gradient(to bottom, #0a0a0f, #000);
             border-left: 1px solid var(--border-color);
@@ -151,13 +155,13 @@
             z-index: 20;
             display: flex;
             flex-direction: column;
+            gap: 12px;
         }
         .side-panel.open { right: 0; }
         .panel-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 16px;
             border-bottom: 1px solid var(--border-color);
             padding-bottom: 10px;
         }
@@ -170,15 +174,15 @@
             border: 1px solid var(--border-color);
             border-radius: 6px;
             padding: 12px;
-            margin-bottom: 16px;
             font-size: 0.8rem;
         }
         .metricas { display: flex; justify-content: space-around; text-align: center; }
         .metricas div { flex: 1; }
-        .metricas div span { display: block; font-size: 1.2rem; color: var(--amber); }
+        .metricas div span { display: block; font-size: 1.4rem; color: var(--amber); }
         .historico ul { list-style: none; max-height: 250px; overflow-y: auto; }
-        .historico li { padding: 8px; border-bottom: 1px solid var(--border-color); font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .historico .del-btn { float: right; color: var(--red); background: none; border: none; cursor: pointer; }
+        .historico li { padding: 8px; border-bottom: 1px solid var(--border-color); font-size: 0.75rem; display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+        .historico li .nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+        .historico .del-btn { color: var(--red); background: none; border: none; cursor: pointer; font-family: inherit; font-size: 0.9rem; padding: 0 4px; }
 
         /* Tela Inicial */
         .splash-screen {
@@ -202,26 +206,36 @@
             text-shadow: 0 0 15px var(--amber);
             margin-bottom: 16px;
         }
-        .splash-screen h1 { font-size: 1.5rem; margin-bottom: 8px; }
-        .splash-screen p { font-size: 0.9rem; color: #aaa; max-width: 90%; line-height: 1.5; }
+        .splash-screen h1 { font-size: 1.2rem; margin-bottom: 8px; }
+        .splash-screen p { font-size: 0.9rem; color: #aaa; max-width: 500px; line-height: 1.5; }
+        .splash-screen .loading {
+            margin-top: 20px;
+            color: var(--accent-color);
+            font-size: 0.85rem;
+            min-height: 1.2em;
+        }
 
         /* Rodapé de Disclaimer */
         .disclaimer {
             position: fixed;
-            bottom: 50px;
+            bottom: 65px;
             left: 0;
             right: 0;
             text-align: center;
             font-size: 0.65rem;
             color: #777;
-            z-index: 100;
+            z-index: 6;
             padding: 8px;
+            pointer-events: none;
         }
         
         /* Responsividade */
         @media (max-width: 600px) {
             .side-panel { width: 90%; }
             .splash-logo { font-size: 2.5rem; }
+            .splash-screen h1 { font-size: 1rem; }
+            .status-text { font-size: 0.7rem; }
+            .btn { padding: 6px 10px; font-size: 0.7rem; }
         }
     </style>
 </head>
@@ -230,14 +244,15 @@
 <div class="splash-screen" id="splashScreen">
     <div class="splash-logo">HUMANO.EXE</div>
     <h1>SISTEMA DE INDEXAÇÃO BIOMÉTRICA FICTÍCIA v1.0.0</h1>
-    <p style="margin-bottom:16px;">Iniciando módulos de detecção facial (MediaPipe) e interface de terminal...</p>
-    <button class="btn" id="startButton" style="margin-top: 16px;">Ativar Câmera</button>
+    <p>Iniciando módulos de detecção facial e interface de terminal...</p>
+    <div class="loading" id="loadingText">Aguardando ativação...</div>
+    <button class="btn" id="startButton" style="margin-top: 16px; padding: 12px 24px; font-size: 1rem;">▶ Ativar Câmera</button>
 </div>
 
 <div class="disclaimer" id="disclaimerText">Simulação interativa. As fichas são fictícias e não representam identificação biométrica ou civil.</div>
 
 <!-- Vídeo e Canvas -->
-<video id="videoElement" autoplay playsinline></video>
+<video id="videoElement" autoplay playsinline muted></video>
 <canvas id="overlay"></canvas>
 
 <!-- Sobreposição de Scanner -->
@@ -250,13 +265,13 @@
 <div class="status-bar">
     <div class="status-left">
         <div id="indicatorDot" class="indicator-dot indicator-detalhes"></div>
-        <span id="statusText" class="status-text">SEM ROSTO DETECTADO</span>
+        <span id="statusText" class="status-text">AGUARDANDO ATIVAÇÃO</span>
     </div>
     <div class="status-right">
         <div class="controls">
             <button class="btn" id="togglePauseBtn">Pausar</button>
-            <button class="btn" id="switchCameraBtn">Alternar Câmera</button>
-            <button class="btn danger" id="stopCameraBtn">Encerrar Câmera</button>
+            <button class="btn" id="switchCameraBtn">Alternar</button>
+            <button class="btn danger" id="stopCameraBtn">Encerrar</button>
         </div>
         <button class="btn" id="sidePanelToggle">Histórico</button>
     </div>
@@ -266,58 +281,64 @@
 <div class="side-panel" id="sidePanel">
     <div class="panel-header">
         <h2>HISTÓRICO DA SESSÃO</h2>
-        <button onclick="humano.fecharPainel()">&times;</button>
+        <button id="closePanelBtn">&times;</button>
     </div>
     <div class="metricas">
         <div><span id="detecoesCount">0</span>Detecções</div>
-        <div><span id="registrosCount">0</span>Registros Únicos</div>
+        <div><span id="registrosCount">0</span>Registros</div>
     </div>
     <div class="ficha" id="currentFicha">
         <strong>FICHA TÉCNICA</strong>
-        <p id="fichaContent">Aguardando detecção...</p>
+        <p id="fichaContent" style="margin-top:8px; color:#888;">Aguardando detecção...</p>
     </div>
     <div class="historico">
+        <strong style="display:block; margin-bottom:6px;">REGISTROS</strong>
         <ul id="historicoLista"></ul>
     </div>
-    <button class="btn" id="exportarBtn" style="width:100%;">Exportar Relatório (.json)</button>
-    <button class="btn danger" id="limparSessaoBtn" style="width:100%; margin-top:8px;">Limpar Sessão</button>
+    <button class="btn" id="exportarBtn" style="width:100%;">⬇ Exportar Relatório (.json)</button>
+    <button class="btn danger" id="limparSessaoBtn" style="width:100%;">✕ Limpar Sessão</button>
 </div>
 
-<script>
-/* =========================== ESTRUTURA PRINCIPAL =========================== */
+<script type="module">
+/* =========================== IMPORTS =========================== */
+import { FaceDetector, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
 
+/* =========================== ESTRUTURA PRINCIPAL =========================== */
 const humano = (() => {
     const state = {
-        status: 'SEM_FOTO',
         cameraAtiva: false,
         pausado: false,
-        facingMode: 'environment',
+        facingMode: 'user',
         detectionCount: 0,
         recordCount: 0,
         trackedFaces: [],
         sessionRecords: [],
-        lastExportId: 0,
-        fps: 10,
+        lastFrameTime: 0,
         stabilizationDelay: 800,
         trackExpiry: 3000,
-        mergeProximity: 120
+        mergeProximity: 150,
+        detecting: false,
+        detectorReady: false,
+        videoReady: false,
+        loopRunning: false
     };
 
     const elementos = {
         splashScreen: document.getElementById('splashScreen'),
         startButton: document.getElementById('startButton'),
-        disclaimerText: document.getElementById('disclaimerText'),
+        loadingText: document.getElementById('loadingText'),
         statusText: document.getElementById('statusText'),
         indicatorDot: document.getElementById('indicatorDot'),
         detecoesCount: document.getElementById('detecoesCount'),
         registrosCount: document.getElementById('registrosCount'),
-        currentFicha: document.getElementById('fichaContent'),
+        fichaContent: document.getElementById('fichaContent'),
         historicoLista: document.getElementById('historicoLista'),
         togglePauseBtn: document.getElementById('togglePauseBtn'),
         switchCameraBtn: document.getElementById('switchCameraBtn'),
         stopCameraBtn: document.getElementById('stopCameraBtn'),
         sidePanelToggle: document.getElementById('sidePanelToggle'),
         sidePanel: document.getElementById('sidePanel'),
+        closePanelBtn: document.getElementById('closePanelBtn'),
         exportarBtn: document.getElementById('exportarBtn'),
         limparSessaoBtn: document.getElementById('limparSessaoBtn')
     };
@@ -325,150 +346,200 @@ const humano = (() => {
     let video = document.getElementById('videoElement');
     let canvas = document.getElementById('overlay');
     let ctx = canvas.getContext('2d');
-    let mpFaceDetection;
-    let camera;
+    let faceDetector = null;
+    let currentStream = null;
+    let animationFrameId = null;
 
     /* =========================== INICIALIZAÇÃO =========================== */
-
     function init() {
+        // Event listeners
         elementos.startButton.addEventListener('click', iniciarSistema);
         elementos.togglePauseBtn.addEventListener('click', alternarPausa);
         elementos.switchCameraBtn.addEventListener('click', alternarCamera);
         elementos.stopCameraBtn.addEventListener('click', encerrarCamera);
         elementos.sidePanelToggle.addEventListener('click', abrirPainel);
+        elementos.closePanelBtn.addEventListener('click', fecharPainel);
         elementos.exportarBtn.addEventListener('click', exportarRelatorio);
         elementos.limparSessaoBtn.addEventListener('click', limparSessao);
 
         carregarHistorico();
-        desenharCanvas();
     }
 
-    function iniciarSistema() {
-        elementos.splashScreen.style.display = 'none';
-        if (!mpFaceDetection) {
-            try {
-                mpFaceDetection = new FaceDetection({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection@0.4/${file}` });
-                mpFaceDetection.setOptions({
-                    model: 'short',
-                    minDetectionConfidence: 0.6,
-                    minTrackingConfidence: 0.6
-                });
-                mpFaceDetection.onResults(onFacesDetected);
-            } catch (e) {
-                console.error("Erro ao carregar MediaPipe:", e);
-                atualizarStatus("ERRO CRÍTICO: Biblioteca MediaPipe indisponível.", 'perigo');
-                return;
-            }
+    async function iniciarSistema() {
+        elementos.startButton.disabled = true;
+        elementos.startButton.textContent = '⏳ Carregando...';
+        elementos.loadingText.textContent = 'Carregando modelo de detecção facial...';
+
+        try {
+            // 1. Carregar o resolvedor WASM
+            const vision = await FilesetResolver.forVisionTasks(
+                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+            );
+            elementos.loadingText.textContent = 'Modelo WASM carregado. Inicializando detector...';
+
+            // 2. Criar o detector facial
+            faceDetector = await FaceDetector.createFromOptions(vision, {
+                baseOptions: {
+                    modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
+                    delegate: "GPU"
+                },
+                runningMode: "VIDEO",
+                minDetectionConfidence: 0.5
+            });
+
+            state.detectorReady = true;
+            elementos.loadingText.textContent = 'Detector pronto. Solicitando câmera...';
+
+            // 3. Iniciar câmera
+            await iniciarCamera();
+
+            // 4. Esconder splash
+            elementos.splashScreen.style.display = 'none';
+
+            // 5. Iniciar loop de detecção
+            iniciarLoopDeteccao();
+
+        } catch (e) {
+            console.error("Erro na inicialização:", e);
+            elementos.loadingText.textContent = '❌ Erro: ' + e.message;
+            elementos.startButton.disabled = false;
+            elementos.startButton.textContent = '↻ Tentar Novamente';
+            atualizarStatus("ERRO: " + e.message, 'perigo');
         }
-        iniciarCamera();
     }
 
     async function iniciarCamera() {
-        let stream;
-        try {
-            stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: state.facingMode } });
-            state.cameraAtiva = true;
-            video.srcObject = stream;
+        // Parar stream anterior se existir
+        if (currentStream) {
+            currentStream.getTracks().forEach(t => t.stop());
+            currentStream = null;
+        }
 
-            // Iniciar detecção
-            if (camera) camera.stop();
-            camera = new Camera(video, {
-                onFrame: async () => {
-                    await mpFaceDetection.send({ image: video });
-                },
-                width: 640,
-                height: 480
+        const constraints = {
+            video: {
+                facingMode: state.facingMode,
+                width: { ideal: 640 },
+                height: { ideal: 480 }
+            },
+            audio: false
+        };
+
+        try {
+            currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+            video.srcObject = currentStream;
+            
+            // Aguardar o vídeo estar pronto
+            await new Promise((resolve) => {
+                if (video.readyState >= 2) {
+                    resolve();
+                } else {
+                    video.onloadedmetadata = () => resolve();
+                }
             });
-            camera.start();
+            
+            await video.play();
+            state.cameraAtiva = true;
+            state.videoReady = true;
+            
+            // Ajustar canvas ao tamanho do vídeo
+            ajustarCanvas();
+            
             atualizarStatus("DETECTANDO...", 'detalhes');
         } catch (err) {
             console.error("Erro ao acessar câmera:", err);
-            atualizarStatus("ERRO NA CÂMERA: Permissão negada ou dispositivo indisponível.", 'perigo');
+            throw new Error("Câmera indisponível: " + err.message);
         }
     }
 
-    function encerrarCamera() {
-        if (camera) camera.stop();
-        video.srcObject = null;
-        state.cameraAtiva = false;
-        state.pausado = false;
-        elementos.togglePauseBtn.textContent = "Pausar";
-        atualizarStatus("CÂMERA ENCERRADA.", 'perigo');
-        limparOverlay();
+    function ajustarCanvas() {
+        const w = video.videoWidth || 640;
+        const h = video.videoHeight || 480;
+        canvas.width = w;
+        canvas.height = h;
     }
 
-    function alternarPausa() {
-        if (!state.cameraAtiva) return;
-        state.pausado = !state.pausado;
-        elementos.togglePauseBtn.textContent = state.pausado ? "Retomar" : "Pausar";
-        if (state.pausado) {
-            atualizarStatus("INDEXAÇÃO PAUSADA.", 'alerta');
-        } else {
-            atualizarStatus("RETOMANDO DETECÇÃO...", 'detalhes');
-        }
+    function iniciarLoopDeteccao() {
+        if (state.loopRunning) return;
+        state.loopRunning = true;
+
+        const loop = () => {
+            if (!state.cameraAtiva || !state.videoReady) {
+                animationFrameId = requestAnimationFrame(loop);
+                return;
+            }
+
+            if (state.pausado) {
+                animationFrameId = requestAnimationFrame(loop);
+                return;
+            }
+
+            try {
+                const now = performance.now();
+                // Detectar apenas se passou tempo suficiente (limita FPS)
+                if (now - state.lastFrameTime > 80) {
+                    state.lastFrameTime = now;
+                    
+                    if (video.readyState >= 2 && faceDetector) {
+                        const results = faceDetector.detectForVideo(video, now);
+                        processarDeteccoes(results);
+                    }
+                }
+            } catch (e) {
+                console.warn("Erro na detecção:", e);
+            }
+
+            animationFrameId = requestAnimationFrame(loop);
+        };
+
+        animationFrameId = requestAnimationFrame(loop);
     }
 
-    function alternarCamera() {
-        if (!state.cameraAtiva) return;
-        encerrarCamera();
-        state.facingMode = state.facingMode === 'environment' ? 'user' : 'environment';
-        setTimeout(iniciarCamera, 500); // Pequeno delay para estabilizar mudança
-    }
-
-    /* =========================== DETECÇÃO FACIAL =========================== */
-
-    function onFacesDetected(results) {
-        if (state.pausado) return;
-
+    /* =========================== PROCESSAMENTO DE DETECÇÕES =========================== */
+    function processarDeteccoes(results) {
         const now = Date.now();
-        const detectedFaces = results.detections || [];
+        const detections = results.detections || [];
 
-        // Atualizar métricas de detecção
-        state.detectionCount += detectedFaces.length;
+        // Atualizar métricas
+        state.detectionCount += detections.length;
         atualizarMetricas();
 
         // Limpar trilhas expiradas
         state.trackedFaces = state.trackedFaces.filter(f => (now - f.lastSeen) < state.trackExpiry);
 
-        // Processar cada rosto detectado
-        detectedFaces.forEach(detection => {
+        // Processar cada rosto
+        detections.forEach(detection => {
             const bbox = detection.boundingBox;
-            const cx = (bbox.xCenter + bbox.width / 2) * video.videoWidth; // Normalizar coordenada X
-            const cy = (bbox.yCenter + bbox.height / 2) * video.videoHeight;
+            const cx = bbox.originX + bbox.width / 2;
+            const cy = bbox.originY + bbox.height / 2;
 
             // Buscar trilha correspondente
             let tracked = state.trackedFaces.find(tf => 
-                Math.hypot(tf.cx - cx, tf.cy - cy) < state.mergeProximity &&
-                (now - tf.lastSeen) < state.trackExpiry
+                Math.hypot(tf.cx - cx, tf.cy - cy) < state.mergeProximity
             );
 
             if (!tracked) {
-                // Nova trilha
-                const faceId = state.trackedFaces.length > 0 ? Math.max(...state.trackedFaces.map(t => t.id)) + 1 : 1;
+                const newId = state.trackedFaces.length > 0 
+                    ? Math.max(...state.trackedFaces.map(t => t.id)) + 1 
+                    : 1;
                 tracked = {
-                    id: faceId,
+                    id: newId,
                     cx, cy,
                     createdAt: now,
                     lastSeen: now,
                     stabilized: false,
-                    recordGenerated: false,
-                    detection: detection
+                    recordGenerated: false
                 };
                 state.trackedFaces.push(tracked);
             } else {
-                // Atualizar trilha existente
                 tracked.cx = cx;
                 tracked.cy = cy;
                 tracked.lastSeen = now;
-                tracked.detection = detection;
             }
 
-            // Checar estabilização após atraso
+            // Verificar estabilização
             if (!tracked.stabilized && (now - tracked.createdAt) > state.stabilizationDelay) {
                 tracked.stabilized = true;
-                // Verificar se já foi registrado nessa sessão
-                const alreadyRegistered = state.sessionRecords.some(r => r.tempTrackId === tracked.id);
-                if (!tracked.recordGenerated && !alreadyRegistered) {
+                if (!tracked.recordGenerated) {
                     tracked.recordGenerated = true;
                     gerarFicha(tracked);
                 }
@@ -476,33 +547,33 @@ const humano = (() => {
         });
 
         // Atualizar status geral
-        if (detectedFaces.length === 0 && state.trackedFaces.length === 0) {
+        if (detections.length === 0) {
             atualizarStatus("SEM ROSTO DETECTADO", 'detalhes');
-        } else if (detectedFaces.length > 1) {
-            atualizarStatus(`ANALISANDO ${detectedFaces.length} ROSTOS...`, 'alerta');
+        } else if (detections.length > 1) {
+            atualizarStatus(`ANALISANDO ${detections.length} ROSTOS...`, 'alerta');
         } else {
             const activeTrack = state.trackedFaces.find(tf => (now - tf.lastSeen) < state.trackExpiry);
-            if (activeTrack?.stabilized && activeTrack.recordGenerated) {
+            if (activeTrack?.recordGenerated) {
                 atualizarStatus("REGISTRO GERADO", 'detalhes');
             } else {
                 atualizarStatus("ANALISANDO...", 'alerta');
             }
         }
 
-        // Desenhar na tela
-        desenharElementos(results.detections);
+        // Desenhar
+        desenharElementos(detections, results);
     }
 
     /* =========================== GERAÇÃO DE FICHA =========================== */
-
-    const nomesSinteticos = ["AXIOM-7", "NOVA-X", "ZEUS-9", "LYRA-B", "ORION-3", "VEGA-P", "THANE-Q", "MIRA-L"];
-    const perfisNarrativos = ["OBSERVADOR", "NÓ URBANO", "AGENTE ANÔNIMO", "PRESENÇA RECORRENTE", "ENTIDADE NÃO CLASSIFICADA", "SINAL HUMANO", "ARQUIVO TEMPORÁRIO"];
+    const nomesSinteticos = ["AXIOM", "NOVA", "ZEUS", "LYRA", "ORION", "VEGA", "THANE", "MIRA", "KAIROS", "ECHO"];
+    const perfisNarrativos = ["OBSERVADOR", "NÓ URBANO", "AGENTE ANÔNIMO", "PRESENÇA RECORRENTE", "ENTIDADE NÃO CLASSIFICADA", "SINAL HUMANO", "ARQUIVO TEMPORÁRIO", "VETOR SILENCIOSO"];
 
     function gerarFicha(faceTrack) {
         const id = state.recordCount + 1;
         state.recordCount = id;
 
-        const nome = nomesSinteticos[Math.floor(Math.random() * nomesSinteticos.length)] + "-" + String(id).padStart(4, '0');
+        const nomeBase = nomesSinteticos[Math.floor(Math.random() * nomesSinteticos.length)];
+        const nome = `${nomeBase}-${String(id).padStart(4, '0')}`;
         const idade = Math.floor(Math.random() * (60 - 18 + 1)) + 18;
         const email = `${nome.toLowerCase().replace(/[^a-z0-9]/g, '.')}@example.invalid`;
         const documento = `ID-DOC-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
@@ -530,16 +601,17 @@ const humano = (() => {
         salvarHistorico();
         exibirFicha(ficha);
         atualizarMetricas();
+        renderizarHistorico();
 
         console.log("[HUMANO.EXE] FICHA GERADA:", ficha);
     }
 
     /* =========================== INTERFACE =========================== */
-
     function atualizarStatus(texto, classe = 'detalhes') {
         elementos.statusText.textContent = texto;
         elementos.statusText.className = 'status-text';
-        elementos.statusText.classList.add(classe);
+        if (classe !== 'detalhes') elementos.statusText.classList.add(classe);
+        
         elementos.indicatorDot.className = 'indicator-dot';
         elementos.indicatorDot.classList.add(`indicator-${classe}`);
     }
@@ -550,85 +622,63 @@ const humano = (() => {
     }
 
     function exibirFicha(ficha) {
-        elementos.currentFicha.innerHTML = `
+        elementos.fichaContent.innerHTML = `
             <div style="border-bottom:1px solid var(--border-color); padding-bottom:8px; margin-bottom:8px;">
-              <strong>${ficha.id}</strong>
+              <strong style="color:var(--accent-color);">${ficha.id}</strong>
             </div>
-            <div style="display:grid; grid-template-columns:70px auto; gap:4px 8px;">
-              <span>Nome:</span>
+            <div style="display:grid; grid-template-columns:80px auto; gap:4px 8px; font-size:0.75rem;">
+              <span style="color:#888;">Nome:</span>
               <span style="color:var(--amber);">${ficha.nome}</span>
-              <span>Idade:</span>
+              <span style="color:#888;">Idade:</span>
               <span style="color:var(--amber);">${ficha.idade} anos</span>
-              <span>E-mail:</span>
-              <span style="word-break:break-all;">${ficha.email}</span>
-              <span>Documento:</span>
+              <span style="color:#888;">E-mail:</span>
+              <span style="word-break:break-all; font-size:0.7rem;">${ficha.email}</span>
+              <span style="color:#888;">Documento:</span>
               <span style="color:var(--red);">${ficha.documento}</span>
-              <span>*(NÃO OFICIAL)*</span>
-              <span>Perfil:</span>
+              <span style="color:#888;">Perfil:</span>
               <span style="color:var(--accent-color);">${ficha.perfil}</span>
-              <span>Score:</span>
+              <span style="color:#888;">Score:</span>
               <span style="color:var(--amber);">${ficha.score}%</span>
-              <span>Status:</span>
-              <span>${ficha.status}</span>
-              <span>Data/Hora:</span>
-              <span>${ficha.dataHora}</span>
-              <span>Sessão:</span>
-              <span>${ficha.sessionCode}</span>
+              <span style="color:#888;">Data/Hora:</span>
+              <span style="font-size:0.7rem;">${ficha.dataHora}</span>
+              <span style="color:#888;">Sessão:</span>
+              <span style="font-size:0.7rem;">${ficha.sessionCode}</span>
             </div>
-            <small style="display:block; margin-top:5px; color:var(--red);">⚠️ REGISTRO SINTÉTICO GERADO. IDENTIDADE CIVIL NÃO VERIFICADA.</small>
+            <small style="display:block; margin-top:8px; color:var(--red); font-size:0.65rem;">⚠️ REGISTRO SINTÉTICO. IDENTIDADE CIVIL NÃO VERIFICADA.</small>
         `;
     }
 
     /* =========================== RENDERIZAÇÃO DO CANVAS =========================== */
-
     function desenharElementos(detections) {
-        const w = canvas.width = video.videoWidth || innerWidth;
-        const h = canvas.height = video.videoHeight || innerHeight;
-        
-        // Ajustar escala se necessário
-        if (video.videoWidth && canvas.width !== video.videoWidth) {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-        }
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const w = canvas.width;
+        const h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
 
         detections.forEach((detection, index) => {
             const bbox = detection.boundingBox;
-            const startX = bbox.xCenter * canvas.width;
-            const startY = bbox.yCenter * canvas.height;
-            const boxWidth = bbox.width * canvas.width;
-            const boxHeight = bbox.height * canvas.height;
-
+            const startX = bbox.originX;
+            const startY = bbox.originY;
+            const boxWidth = bbox.width;
+            const boxHeight = bbox.height;
             const cx = startX + boxWidth / 2;
             const cy = startY + boxHeight / 2;
 
-            // Cor da moldura: Determinar se é uma trilha já registrada
             const tracked = state.trackedFaces.find(tf => 
-                Math.hypot(tf.cx - cx, tf.cy - cy) < state.mergeProximity &&
-                (Date.now() - tf.lastSeen) < state.trackExpiry
+                Math.hypot(tf.cx - cx, tf.cy - cy) < state.mergeProximity
             );
             const color = tracked?.recordGenerated ? '#ff3355' : (tracked?.stabilized ? '#ffaa00' : '#00ffcc');
 
-            // Moldura principal
+            // Moldura
             ctx.strokeStyle = color;
-            ctx.lineWidth = 3;
-            ctx.setLineDash([5, 5]);
+            ctx.lineWidth = 2.5;
+            ctx.setLineDash([6, 4]);
             ctx.strokeRect(startX, startY, boxWidth, boxHeight);
             ctx.setLineDash([]);
 
-            // Detalhes no canto superior da moldura
-            ctx.fillStyle = color;
-            ctx.font = "14px monospace";
-            ctx.textAlign = "left";
-            ctx.fillText(`FACE-${index+1}`, startX + 5, startY - 12);
-            ctx.textAlign = "center";
-            ctx.fillText(`Tracking...`, cx, startY - 28);
-
-            // Coordenadas decorativas
-            const offset = 8;
-            ctx.lineWidth = 1.5;
-            ctx.strokeStyle = 'rgba(0, 255, 204, 0.4)';
+            // Cantos decorativos
+            const offset = 12;
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = color;
             ctx.beginPath();
             ctx.moveTo(startX, startY + offset); ctx.lineTo(startX, startY); ctx.lineTo(startX + offset, startY);
             ctx.moveTo(startX + boxWidth, startY + offset); ctx.lineTo(startX + boxWidth, startY); ctx.lineTo(startX + boxWidth - offset, startY);
@@ -636,7 +686,15 @@ const humano = (() => {
             ctx.moveTo(startX + boxWidth, startY + boxHeight - offset); ctx.lineTo(startX + boxWidth, startY + boxHeight); ctx.lineTo(startX + boxWidth - offset, startY + boxHeight);
             ctx.stroke();
 
-            // Ícone de confirmação ou alerta
+            // Label
+            ctx.fillStyle = 'rgba(0,0,0,0.7)';
+            ctx.fillRect(startX, startY - 22, 100, 20);
+            ctx.fillStyle = color;
+            ctx.font = "bold 12px monospace";
+            ctx.textAlign = "left";
+            ctx.fillText(`FACE-${index + 1}`, startX + 5, startY - 8);
+
+            // Ponto de status
             if (tracked?.recordGenerated) {
                 ctx.fillStyle = '#ff3355';
                 ctx.beginPath();
@@ -650,75 +708,100 @@ const humano = (() => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
 
-    function desenharCanvas() {
-        desenharElementos([]);
-        requestAnimationFrame(desenharCanvas);
+    /* =========================== CONTROLES =========================== */
+    function encerrarCamera() {
+        if (currentStream) {
+            currentStream.getTracks().forEach(t => t.stop());
+            currentStream = null;
+        }
+        video.srcObject = null;
+        state.cameraAtiva = false;
+        state.videoReady = false;
+        state.pausado = false;
+        elementos.togglePauseBtn.textContent = "Pausar";
+        atualizarStatus("CÂMERA ENCERRADA", 'perigo');
+        limparOverlay();
+    }
+
+    function alternarPausa() {
+        if (!state.cameraAtiva) return;
+        state.pausado = !state.pausado;
+        elementos.togglePauseBtn.textContent = state.pausado ? "Retomar" : "Pausar";
+        elementos.togglePauseBtn.classList.toggle('active', state.pausado);
+        atualizarStatus(state.pausado ? "INDEXAÇÃO PAUSADA" : "RETOMANDO DETECÇÃO...", state.pausado ? 'alerta' : 'detalhes');
+    }
+
+    async function alternarCamera() {
+        if (!state.cameraAtiva) return;
+        state.facingMode = state.facingMode === 'environment' ? 'user' : 'environment';
+        atualizarStatus("TROCANDO CÂMERA...", 'alerta');
+        try {
+            await iniciarCamera();
+        } catch (e) {
+            atualizarStatus("ERRO AO TROCAR CÂMERA", 'perigo');
+        }
     }
 
     /* =========================== PAINEL LATERAL =========================== */
-
     function abrirPainel() {
         elementos.sidePanel.classList.add('open');
+        renderizarHistorico();
     }
 
     function fecharPainel() {
         elementos.sidePanel.classList.remove('open');
     }
 
-    /* =========================== PERSISTÊNCIA LOCAL =========================== */
-
+    /* =========================== PERSISTÊNCIA =========================== */
     function salvarHistorico() {
-        localStorage.setItem('humanoSessionRecords', JSON.stringify(state.sessionRecords));
-        localStorage.setItem('humanoMetrics', JSON.stringify({
-            detecoes: state.detectionCount,
-            registros: state.recordCount
-        }));
+        try {
+            localStorage.setItem('humanoSessionRecords', JSON.stringify(state.sessionRecords));
+        } catch (e) {
+            console.warn("Não foi possível salvar histórico:", e);
+        }
     }
 
     function carregarHistorico() {
-        const savedRecords = localStorage.getItem('humanoSessionRecords');
-        if (savedRecords) {
-            try {
-                state.sessionRecords = JSON.parse(savedRecords);
-                state.detectionCount = 0;
+        try {
+            const saved = localStorage.getItem('humanoSessionRecords');
+            if (saved) {
+                state.sessionRecords = JSON.parse(saved);
                 state.recordCount = state.sessionRecords.length;
-            } catch(e) {
-                console.warn("Falha ao carregar histórico.");
             }
-        }
-        // Carregar métricas
-        const savedMetrics = localStorage.getItem('humanoMetrics');
-        if (savedMetrics) {
-            try {
-                const metrics = JSON.parse(savedMetrics);
-                state.detectionCount = metrics.detecoes || 0;
-            } catch(e){}
+        } catch (e) {
+            console.warn("Falha ao carregar histórico.");
         }
         atualizarMetricas();
-        // Renderizar histórico
         renderizarHistorico();
     }
 
     function renderizarHistorico() {
+        if (!elementos.historicoLista) return;
         elementos.historicoLista.innerHTML = '';
         if (state.sessionRecords.length === 0) {
-            elementos.historicoLista.innerHTML = '<li style="text-align:center; color:#aaa;">Nenhum registro.</li>';
+            elementos.historicoLista.innerHTML = '<li style="text-align:center; color:#666; justify-content:center;">Nenhum registro.</li>';
             return;
         }
         state.sessionRecords.slice().reverse().forEach(record => {
             const li = document.createElement('li');
-            li.innerHTML = `<strong>${record.id}</strong> - ${record.nome} <button class="del-btn" onclick="humano.removerRegistro('${record.id}')">X</button>`;
+            const span = document.createElement('span');
+            span.className = 'nome';
+            span.textContent = `${record.id} · ${record.nome}`;
+            const btn = document.createElement('button');
+            btn.className = 'del-btn';
+            btn.textContent = '×';
+            btn.onclick = () => removerRegistro(record.id);
+            li.append(span, btn);
             elementos.historicoLista.appendChild(li);
         });
     }
 
-    /* =========================== FUNÇÕES AUXILIARES =========================== */
-
     function removerRegistro(id) {
         state.sessionRecords = state.sessionRecords.filter(r => r.id !== id);
+        state.recordCount = state.sessionRecords.length;
         salvarHistorico();
         renderizarHistorico();
-        elementos.registrosCount.textContent = state.recordCount = state.sessionRecords.length;
+        atualizarMetricas();
     }
 
     function limparSessao() {
@@ -728,10 +811,9 @@ const humano = (() => {
         state.recordCount = 0;
         state.trackedFaces = [];
         localStorage.removeItem('humanoSessionRecords');
-        localStorage.removeItem('humanoMetrics');
         elementos.fichaContent.textContent = "Sessão limpa.";
-        elementos.historicoLista.innerHTML = '<li style="text-align:center; color:#aaa;">Nenhum registro.</li>';
         atualizarMetricas();
+        renderizarHistorico();
     }
 
     function exportarRelatorio() {
@@ -740,7 +822,7 @@ const humano = (() => {
             return;
         }
         const conteudo = {
-            titulo: "HUMANO.EXEE - RELATÓRIO DE SIMULAÇÃO",
+            titulo: "HUMANO.EXE - RELATÓRIO DE SIMULAÇÃO",
             descricao: "Este relatório contém dados sintéticos e fictícios. Não representam identificação biométrica ou civil real.",
             timestamp: new Date().toISOString(),
             metricas: {
@@ -772,8 +854,8 @@ const humano = (() => {
     };
 })();
 
-// Iniciar aplicação
+// Iniciar
 window.addEventListener('load', () => humano.init());
-    </script>
+</script>
 </body>
 </html>
