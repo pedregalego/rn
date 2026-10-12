@@ -1,1004 +1,779 @@
 <!DOCTYPE html>
-<html lang="pt">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OTARIO · p > k > h > f~t(x) · COPA-AP(TK)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; media-src * 'self'; img-src * 'self' data:;">
+    <title>HUMANO.EXEE</title>
+    <!-- MediaPipe Face Detection Libraries (CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection@0.4/face_detection.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.4/camera_utils.js"></script>
+    <!-- Estilos -->
     <style>
-        /* -------------------------------------------------------------------- *
-         * RESET GLOBAL                                                 *
-         * -------------------------------------------------------------------- */
-        * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-
-        /* -------------------------------------------------------------------- *
-         * CORE VARIABLES – PSYCHEDELIC COLOR PALETTE                         *
-         * -------------------------------------------------------------------- */
+        /* --- RESET E VARIÁVEIS --- */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
-            --bg-deep: #050510;
-            --primary: #ff6b9d;
-            --secondary: #ff8c42;
-            --tertiary: #a78bfa;
-            --text-main: #ff1493;
-            --text-alt: #ff8c42;
-            --border: rgba(255, 20, 147, 0.3);
-            --glow-primary: rgba(255, 20, 147, 0.55);
-            --glow-secondary: rgba(255, 140, 66, 0.45);
-            --shadow-heavy: 0 0 80px rgba(255, 20, 147, 0.3), 0 0 160px rgba(255, 140, 66, 0.2);
-            --radius-card: 1.5rem;
-            --radius-btn: 1rem;
-            --transition-smooth: 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
-            --font-main: 'Segoe UI', 'Noto Sans', 'Noto Sans SC', system-ui, sans-serif;
+            --bg-color: #0a0a0f;
+            --terminal-green: #00ff88;
+            --amber: #ffaa00;
+            --red: #ff3355;
+            --scanline-color: rgba(0, 255, 136, 0.04);
+            --border-color: #222;
+            --accent-color: #00ffcc;
+            --font-mono: 'Courier New', 'Consolas', monospace;
+            --transition-fast: 0.2s ease;
+            --transition-slow: 0.8s cubic-bezier(0.77, 0, 0.07, 1);
         }
 
-        /* -------------------------------------------------------------------- *
-         * BODY – FULLSCREEN BACKGROUND                                          *
-         * -------------------------------------------------------------------- */
         body {
-            background: var(--bg-deep);
-            font-family: var(--font-main);
-            min-height:100vh;
-            display:flex;
-            justify-content:center;
-            align-items:center;
-            padding:1rem;
-            touch-action:manipulation;
-            user-select:none;
-            overflow:hidden;
-            position:relative;
-            perspective:1800px;
+            font-family: var(--font-mono);
+            background-color: var(--bg-color);
+            color: var(--terminal-green);
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
         }
 
-        /* -------------------------------------------------------------------- *
-         * MULTI-LAYERED ORB BACKGROUNDS – PSYCHEDELIC DEPTH                     *
-         * -------------------------------------------------------------------- */
-        .bg-layer {
-            position:fixed; inset:0; z-index:0; pointer-events:none;
+        /* --- OVERLAY DE SCANNER --- */
+        .scanner-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
         }
-        .bg-orb {
-            position:absolute; border-radius:50%; filter:blur(120px); opacity:0.15; will-change:transform;
+        .scanline {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90, transparent, var(--terminal-green), transparent);
+            animation: scan 6s linear infinite;
+            opacity: 0.5;
         }
-        .orb-1 {
-            width:500px; height:500px;
-            background:radial-gradient(circle, var(--primary), #e88fb0, var(--secondary));
-            top:-10%; left:-5%;
-            animation:floatOrb 20s ease-in-out infinite;
+        @keyframes scan {
+            0% { top: 0; }
+            100% { top: 100%; }
         }
-        .orb-2 {
-            width:400px; height:400px;
-            background:radial-gradient(circle, var(--secondary), #f0a070, var(--primary));
-            bottom:-15%; right:-8%;
-            animation:floatOrb 25s ease-in-out infinite reverse;
-        }
-        .orb-3 {
-            width:300px; height:300px;
-            background:radial-gradient(circle, var(--tertiary), #6366f1, #8b5cf6);
-            top:40%; left:50%; transform:translate(-50%,-50%);
-            animation:pulseOrb 15s ease-in-out infinite;
-        }
-        .orb-4 {
-            width:350px; height:350px;
-            background:radial-gradient(circle, #ff9f43, #ff6b9d, #f0a070);
-            top:10%; right:20%;
-            animation:floatOrb 30s ease-in-out infinite reverse;
-        }
-        @keyframes floatOrb {
-            0%,100% { transform:translate(0,0) scale(1); }
-            33% { transform:translate(30px,-40px) scale(1.1); }
-            66% { transform:translate(-20px,20px) scale(0.95); }
-        }
-        @keyframes pulseOrb {
-            0%,100% { transform:translate(-50%,-50%) scale(1); opacity:0.3; }
-            50% { transform:translate(-50%,-50%) scale(1.3); opacity:0.7; }
+        .noise {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.8' type='fractalNoise'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+            opacity: 0.05;
+            pointer-events: none;
         }
 
-        /* -------------------------------------------------------------------- *
-         * STARFIELD BACKGROUND – SUBTLE TWINKLE                                 *
-         * -------------------------------------------------------------------- */
-        .starfield {
-            position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none;
+        /* --- ELEMENTOS DE INTERFACE --- */
+        #videoElement, #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
-        .star {
-            position:absolute; background:#fff; border-radius:50%; opacity:0; animation:twinkle var(--twinkle-dur) ease-in-out infinite;
-        }
-        @keyframes twinkle {
-            0%,100% { opacity:0; transform:scale(0); }
-            20% { opacity:0.8; transform:scale(1); }
-            40% { opacity:0; transform:scale(0); }
+        #overlay {
+            pointer-events: none;
         }
 
-        /* -------------------------------------------------------------------- *
-         * GLITCH OVERLAY – INTERMITTENT SCAN-LIKE EFFECT                        *
-         * -------------------------------------------------------------------- */
-        .glitch-overlay {
-            position:fixed; inset:0; z-index:10; pointer-events:none; opacity:0;
-            background:linear-gradient(0deg, rgba(255,20,147,0.03), rgba(255,140,66,0.02));
-            animation:glitchPulse 12s ease-in-out infinite;
+        /* Status e Indicadores */
+        .status-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(10, 10, 15, 0.85);
+            border-top: 1px solid var(--border-color);
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+            backdrop-filter: blur(5px);
         }
-        @keyframes glitchPulse {
-            0%,100% { opacity:0; }
-            10% { opacity:0.07; transform:translateX(2px) translateY(-2px); }
-            30% { opacity:0; }
-            60% { opacity:0.05; transform:translateX(-2px) translateY(1px); }
-            80% { opacity:0; }
+        .status-left, .status-right { display: flex; align-items: center; gap: 12px; }
+        .indicator-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            border: 1px solid currentColor;
         }
+        .indicator-detalhes { color: var(--terminal-green); }
+        .indicator-alerta { background-color: var(--amber); box-shadow: 0 0 8px var(--amber); }
+        .indicator-perigo { background-color: var(--red); animation: pulse 1.5s infinite; }
+        @keyframes pulse { 50% { opacity: 0.5; } }
+        
+        .status-text {
+            font-size: 1rem;
+            color: var(--terminal-green);
+            white-space: nowrap;
+        }
+        .status-text .alerta { color: var(--amber); }
+        .status-text .perigo { color: var(--red); }
 
-        /* -------------------------------------------------------------------- *
-         * MAIN WRAPPER – PERSPECTIVE                                               *
-         * -------------------------------------------------------------------- */
-        .app {
-            width:100%; max-width:560px; min-height:110vh;
-            display:flex; flex-direction:column; align-items:center;
-            justify-content:center; position:relative; z-index:1; padding:1rem;
-            perspective:1800px;
+        /* Botões de Controle */
+        .controls { display: flex; gap: 8px; }
+        .btn {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid var(--border-color);
+            color: var(--terminal-green);
+            padding: 8px 14px;
+            font-family: inherit;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: var(--transition-fast);
+            border-radius: 4px;
         }
+        .btn:hover {
+            background: rgba(0, 255, 136, 0.2);
+            box-shadow: 0 0 8px var(--terminal-green);
+        }
+        .btn.danger { border-color: var(--red); color: var(--red); }
+        .btn.danger:hover { background: rgba(255, 51, 85, 0.15); box-shadow: 0 0 8px var(--red); }
+        .btn.active { background: rgba(0, 255, 136, 0.3); box-shadow: 0 0 8px var(--terminal-green); }
 
-        /* -------------------------------------------------------------------- *
-         * CARD – 3D ROTATING SHELL                                               *
-         * -------------------------------------------------------------------- */
-        .card {
-            width:100%; max-width:540px; aspect-ratio:2.4/3.6;
-            position:relative; cursor:pointer; transform-style:preserve-3d;
-            transition:transform var(--transition-smooth);
-            box-shadow: var(--shadow-heavy), inset 0 0 0 1px rgba(255,255,255,0.3);
-            border-radius: var(--radius-card); will-change:transform;
+        /* Painel Lateral de Ficha */
+        .side-panel {
+            position: fixed;
+            top: 0;
+            right: -400px;
+            width: 320px;
+            height: 100vh;
+            background: linear-gradient(to bottom, #0a0a0f, #000);
+            border-left: 1px solid var(--border-color);
+            padding: 20px;
+            overflow-y: auto;
+            transition: right var(--transition-slow);
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
         }
-        .card:active { transform:scale(0.96); }
+        .side-panel.open { right: 0; }
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+        .panel-header h2 { font-size: 1rem; color: var(--amber); }
+        .panel-header button { background: transparent; border: none; color: var(--terminal-green); font-size: 1.2rem; cursor: pointer; }
+        .panel-header button:hover { color: var(--amber); }
 
-        .card-inner {
-            position:absolute; inset:0; border-radius:var(--radius-card);
-            overflow:hidden; background:linear-gradient(165deg, #c5ddf0 0%, #b8d4ec 40%, #a8c8e4 100%);
-            box-shadow: 0 0 100px rgba(255,140,180,0.3), 0 0 200px rgba(255,20,147,0.1);
-            transition: box-shadow 1.2s ease, background 1.2s ease;
+        .ficha, .metricas, .historico {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 16px;
+            font-size: 0.8rem;
         }
+        .metricas { display: flex; justify-content: space-around; text-align: center; }
+        .metricas div { flex: 1; }
+        .metricas div span { display: block; font-size: 1.2rem; color: var(--amber); }
+        .historico ul { list-style: none; max-height: 250px; overflow-y: auto; }
+        .historico li { padding: 8px; border-bottom: 1px solid var(--border-color); font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .historico .del-btn { float: right; color: var(--red); background: none; border: none; cursor: pointer; }
 
-        /* -------------------------------------------------------------------- *
-         * CARD CORNERS – GLOWING GEOMETRY                                          *
-         * -------------------------------------------------------------------- */
-        .corner {
-            position:absolute; width:22px; height:22px; border-style:solid; pointer-events:none; z-index:2;
-            transition:border-color 1.2s ease;
+        /* Tela Inicial */
+        .splash-screen {
+            position: fixed;
+            inset: 0;
+            background: var(--bg-color);
+            color: var(--terminal-green);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 20px;
+            z-index: 1000;
         }
-        .corner.tl { top:1.5rem; left:1.5rem; border-width:1px 0 0 1px; border-color:#e88fb0; }
-        .corner.tr { top:1.5rem; right:1.5rem; border-width:1px 1px 0 0; border-color:#f0a070; }
-        .corner.bl { bottom:1.5rem; left:1.5rem; border-width:0 0 1px 1px; border-color:#f0a070; }
-        .corner.br { bottom:1.5rem; right:1.5rem; border-width:0 1px 1px 0; border-color:#e88fb0; }
+        .splash-logo {
+            font-size: 4rem;
+            font-weight: bold;
+            letter-spacing: 4px;
+            color: var(--amber);
+            text-shadow: 0 0 15px var(--amber);
+            margin-bottom: 16px;
+        }
+        .splash-screen h1 { font-size: 1.5rem; margin-bottom: 8px; }
+        .splash-screen p { font-size: 0.9rem; color: #aaa; max-width: 90%; line-height: 1.5; }
 
-        /* -------------------------------------------------------------------- *
-         * OTARIO SEAL – TOP-LEFT SIGNATURE                                        *
-         * -------------------------------------------------------------------- */
-        .otario-seal {
-            position:absolute; top:1.4rem; left:1.7rem; z-index:4; pointer-events:none;
+        /* Rodapé de Disclaimer */
+        .disclaimer {
+            position: fixed;
+            bottom: 50px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 0.65rem;
+            color: #777;
+            z-index: 100;
+            padding: 8px;
         }
-        .otario-seal .formula {
-            font-family:'Courier New', monospace; font-size:0.55rem; letter-spacing:2.5px;
-            font-weight:600; line-height:1.5; white-space:nowrap;
-            text-shadow:0 0 20px rgba(255,140,180,0.6);
+        
+        /* Responsividade */
+        @media (max-width: 600px) {
+            .side-panel { width: 90%; }
+            .splash-logo { font-size: 2.5rem; }
         }
-        .otario-seal .formula .var {
-            transition:color 0.5s ease, text-shadow 0.5s ease;
-        }
-        .otario-seal .formula .var-p { color:#e88fb0; }
-        .otario-seal .formula .var-k { color:#f0a070; }
-        .otario-seal .formula .var-h { color:#e88fb0; }
-        .otario-seal .formula .var-f { color:#f0a070; }
-        .otario-seal .formula .var-t { color:#e88fb0; }
-        .otario-seal .formula .var.active {
-            text-shadow:0 0 24px currentColor;
-        }
-        .otario-seal .sub {
-            font-family:'Courier New', monospace; font-size:0.45rem; letter-spacing:1.5px;
-            color:#f0a070; margin-top:0.2rem; text-shadow:0 0 12px rgba(240,160,112,0.3);
-        }
-        .otario-seal .label {
-            font-family:'Courier New', monospace; font-size:0.38rem; letter-spacing:2.8px;
-            color:rgba(232,143,176,0.5); text-transform:uppercase; margin-top:0.15rem;
-        }
-
-        /* -------------------------------------------------------------------- *
-         * FRAMEWORK TAG – RIGHT-TOP LABELS                                       *
-         * -------------------------------------------------------------------- */
-        .framework-tag {
-            position:absolute; top:1.4rem; right:1.7rem; z-index:4;
-            display:flex; gap:0.35rem; align-items:center;
-            font-family:'Courier New', monospace; font-size:0.52rem; letter-spacing:1.2px;
-            pointer-events:none;
-        }
-        .framework-tag .fw {
-            padding:0.18rem 0.58rem; border:1px solid rgba(232,143,176,0.32);
-            border-radius:3px; transition:all 0.5s ease; position:relative; color:#e88fb0;
-        }
-        .framework-tag .fw[data-fw="K"] { color:#ff6b9d; border-color:rgba(255,107,157,0.32); }
-        .framework-tag .fw[data-fw="H"] { color:#f0a070; border-color:rgba(240,160,112,0.32); }
-        .framework-tag .fw[data-fw="F"] { color:#e88fb0; border-color:rgba(232,143,176,0.32); }
-        .framework-tag .fw.active {
-            box-shadow:0 0 18px currentColor; background:rgba(255,255,255,0.08);
-        }
-
-        /* -------------------------------------------------------------------- *
-         * CARD CONTENT – CENTRAL AREA                                            *
-         * -------------------------------------------------------------------- */
-        .card-content {
-            position:absolute; inset:0; display:flex; flex-direction:column;
-            align-items:center; justify-content:center; padding:2.5rem 2rem;
-            z-index:3; gap:0.6rem; pointer-events:none;
-        }
-
-        /* -------------------------------------------------------------------- *
-         * GLYPH WORD – MYSTICAL SYMBOL                                            *
-         * -------------------------------------------------------------------- */
-        .glyph-wrap {
-            position:relative; display:flex; align-items:center; justify-content:center;
-            margin-bottom:0.3rem; transition:transform 0.6s cubic-bezier(0.34,1.56,0.64,1);
-        }
-        .glyph {
-            font-size:7rem; line-height:1; font-weight:200;
-            color:#ff1493; text-shadow:0 0 50px rgba(255,20,147,0.6), 0 0 100px rgba(255,20,147,0.3), 0 0 150px rgba(255,140,66,0.15);
-            transition:text-shadow 1.2s ease, color 1.2s ease, transform 0.5s ease; letter-spacing:-0.02em;
-        }
-        .glyph.small { font-size:5rem; }
-        .glyph-ring {
-            position:absolute; width:9rem; height:9rem; border-radius:50%;
-            border:1px solid rgba(255,20,147,0.25); transition:border-color 1.2s ease, transform 0.8s ease;
-        }
-        .glyph-ring::before {
-            content:''; position:absolute; inset:0.6rem; border-radius:50%;
-            border:1px dashed rgba(240,160,112,0.15);
-        }
-
-        /* -------------------------------------------------------------------- *
-         * WORD DISPLAY – BILINGUAL                                               *
-         * -------------------------------------------------------------------- */
-        .word {
-            font-size:2.4rem; font-weight:300; letter-spacing:0.04em;
-            color:#ff1493; text-shadow:0 0 50px rgba(255,20,147,0.55), 0 0 100px rgba(255,20,147,0.3);
-            transition:opacity 0.4s ease, transform 0.4s ease, color 1.2s ease;
-            min-height:3.5rem; text-align:center;
-        }
-        .word.zh { font-size:2.8rem; font-weight:400; letter-spacing:0.06em; }
-        .word.en { font-size:1.9rem; font-style:italic; }
-
-        /* -------------------------------------------------------------------- *
-         * ORACLE TEXT – MYSTICAL VOICES (PT & ZH)                                 *
-         * -------------------------------------------------------------------- */
-        .oracle {
-            font-size:0.72rem; color:#ff8c42; letter-spacing:0.12em;
-            text-align:center; line-height:1.6; max-width:90%;
-            margin-top:0.15rem; transition:opacity 0.4s ease, color 1.2s ease;
-            font-style:italic; min-height:2.2rem; text-shadow:0 0 20px rgba(255,140,66,0.25);
-        }
-
-        /* -------------------------------------------------------------------- *
-         * NUMERIC INDEX – SECONDARY INFORMATION                                    *
-         * -------------------------------------------------------------------- */
-        .arith-number {
-            position:absolute; bottom:1.6rem; left:1.7rem;
-            font-size:0.55rem; color:rgba(255,20,147,0.65); letter-spacing:3px;
-            font-family:'Courier New', monospace;
-        }
-        .arith-number .num {
-            font-size:0.75rem; font-weight:600; color:#ff8c42;
-        }
-
-        /* -------------------------------------------------------------------- *
-         * CHOICE OVERLAY – INTERACTIVE MODAL                                     *
-         * -------------------------------------------------------------------- */
-        .choice-overlay {
-            position:absolute; inset:0; z-index:10; display:flex; flex-direction:column;
-            align-items:center; justify-content:center; gap:0.7rem;
-            padding:2rem 1.5rem; background:rgba(98,138,246,0.92);
-            backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
-            border-radius:1.8rem; opacity:0; pointer-events:none;
-            transition:opacity 0.5s ease;
-        }
-        .choice-overlay.visible { opacity:1; pointer-events:auto; }
-
-        .choice-overlay .choice-title {
-            font-size:0.62rem; color:#ff1493; letter-spacing:0.25em;
-            text-transform:uppercase; margin-bottom:0.5rem; text-align:center;
-            white-space:nowrap;
-        }
-        .choice-btn {
-            background:rgba(255,255,255,0.5); border:1px solid rgba(255,20,147,0.4);
-            color:#ff1493; font-size:1.2rem; font-weight:400; padding:0.85rem 1.3rem;
-            border-radius:var(--radius-btn); cursor:pointer; transition:all 0.2s;
-            text-align:left; display:flex; align-items:center; gap:0.8rem;
-            width:100%; max-width:260px; font-family:inherit;
-        }
-        .choice-btn:active {
-            background:rgba(255,140,66,0.9); border-color:#ff8c42; transform:scale(0.97);
-        }
-        .choice-btn .btn-glyph {
-            font-size:1.5rem; min-width:2rem; text-align:center; color:#ff8c42;
-        }
-        .choice-btn .btn-label { display:flex; flex-direction:column; gap:0.08rem; }
-        .choice-btn .btn-label .sub {
-            font-size:0.55rem; color:rgba(255,140,66,0.85); font-weight:300; font-style:italic;
-        }
-
-        /* -------------------------------------------------------------------- *
-         * RESET BUTTON                                                            *
-         * -------------------------------------------------------------------- */
-        .reset-btn {
-            margin-top:1.8rem; background:transparent; border:1px solid rgba(255,20,147,0.3);
-            color:#ff1493; font-size:0.68rem; padding:0.5rem 1.3rem;
-            border-radius:2rem; cursor:pointer; font-family:inherit;
-            letter-spacing:0.12em; transition:border-color 0.3s, color 0.3s; text-transform:uppercase;
-        }
-        .reset-btn:active { border-color:#ff8c42; color:#ff8c42; }
-
-        /* -------------------------------------------------------------------- *
-         * PROGRESS TRACK – VISUAL FEEDBACK                                        *
-         * -------------------------------------------------------------------- */
-        .progress-track {
-            display:flex; gap:0.5rem; margin-bottom:1.5rem; padding:0 0.5rem;
-            width:100%; max-width:440px;
-        }
-        .progress-dot {
-            flex:1; height:1px; background:rgba(255,20,147,0.2); transition:background 0.6s ease;
-        }
-        .progress-dot.active { background:#ff1493; box-shadow:0 0 8px #ff1493; }
-        .progress-dot.done { background:rgba(255,140,66,0.5); }
-
-        /* -------------------------------------------------------------------- *
-         * REVEAL FLASH – MYSTICAL BUBBLE                                          *
-         * -------------------------------------------------------------------- */
-        .reveal-flash {
-            position:absolute; inset:0; border-radius:var(--radius-card);
-            background:radial-gradient(circle at 50% 50%, rgba(255,20,147,0.25), transparent 70%);
-            pointer-events:none; opacity:0; transition:opacity 0.3s ease; z-index:5;
-        }
-        .reveal-flash.active { opacity:1; }
-
-        /* -------------------------------------------------------------------- *
-         * ANIMATIONS – FADE IN / OUT                                              *
-         * -------------------------------------------------------------------- */
-        .fade-in {
-            animation:fadeIn 0.5s cubic-bezier(0.34,1.56,0.64,1);
-        }
-        @keyframes fadeIn {
-            from { opacity:0; transform:translateY(10px) scale(0.97); }
-            to { opacity:1; transform:translateY(0) scale(1); }
-        }
-        .fade-out {
-            animation:fadeOut 0.25s ease-in;
-        }
-        @keyframes fadeOut {
-            from { opacity:1; }
-            to { opacity:0; transform:scale(0.97); }
-        }
-
-        /* -------------------------------------------------------------------- *
-         * ERROR STATE – SHAKE                                                      *
-         * -------------------------------------------------------------------- */
-        .error-state { animation:shake 0.5s ease; }
-        @keyframes shake {
-            0%,100% { transform:translateX(0); }
-            20% { transform:translateX(-8px); }
-            40% { transform:translateX(8px); }
-            60% { transform:translateX(-6px); }
-            80% { transform:translateX(4px); }
-        }
-
-        /* -------------------------------------------------------------------- *
-         * ORIENTATIONS – MEDIA QUERIES                                            *
-         * -------------------------------------------------------------------- */
-        @media (max-width:480px) {
-            .card { max-width:340px; }
-            .glyph { font-size:5.5rem; }
-            .glyph.small { font-size:4rem; }
-            .glyph-ring { width:7rem; height:7rem; }
-            .word { font-size:1.9rem; }
-            .word.zh { font-size:2.1rem; }
-            .word.en { font-size:1.6rem; }
-            .card-content { padding:2rem 1.5rem; }
-            .oracle { font-size:0.6rem; }
-            .otario-seal .formula { font-size:0.45rem; }
-            .otario-seal .sub { font-size:0.38rem; }
-            .framework-tag { font-size:0.44rem; gap:0.25rem; top:1.2rem; right:1.3rem; }
-            .otario-seal { top:1.2rem; left:1.3rem; }
-        }
-
-        @media (max-height:700px) {
-            .card { aspect-ratio:2.4/3.6; }
-            .glyph { font-size:4.5rem; }
-            .word { font-size:1.7rem; }
-            .oracle { font-size:0.6rem; min-height:1.6rem; }
-        }
-
-        /* -------------------------------------------------------------------- *
-         * UTILITIES – HIDDEN / VISIBLE                                            *
-         * -------------------------------------------------------------------- */
-        .hidden { display:none !important; }
-
-        /* -------------------------------------------------------------------- *
-         * FORMATTED PREVIEW OF STEP TEXT – BILINGUAL                               *
-         * -------------------------------------------------------------------- */
-        .bilingual-word { display:flex; flex-direction:column; align-items:center; gap:0.1rem; }
-        .bilingual-word .pt, .bilingual-word .zh { line-height:1; }
     </style>
 </head>
 <body>
-    <div class="bg-layer orb-orig orb-1"></div>
-    <div class="bg-layer orb-orig orb-2"></div>
-    <div class="bg-layer orb-orig orb-3"></div>
-    <div class="bg-layer orb-orig orb-4"></div>
 
-    <!-- STARFIELD -->
-    <div class="starfield" id="starfield"></div>
+<div class="splash-screen" id="splashScreen">
+    <div class="splash-logo">HUMANO.EXE</div>
+    <h1>SISTEMA DE INDEXAÇÃO BIOMÉTRICA FICTÍCIA v1.0.0</h1>
+    <p style="margin-bottom:16px;">Iniciando módulos de detecção facial (MediaPipe) e interface de terminal...</p>
+    <button class="btn" id="startButton" style="margin-top: 16px;">Ativar Câmera</button>
+</div>
 
-    <!-- GLITCH OVERLAY -->
-    <div class="glitch-overlay" id="glitchOverlay"></div>
+<div class="disclaimer" id="disclaimerText">Simulação interativa. As fichas são fictícias e não representam identificação biométrica ou civil.</div>
 
-    <div class="app" id="app">
-        <!-- PROGRESS BAR -->
-        <div class="progress-track" id="progressTrack">
-            <div class="progress-dot" data-step="0"></div>
-            <div class="progress-dot" data-step="1"></div>
-            <div class="progress-dot" data-step="2"></div>
-            <div class="progress-dot" data-step="3"></div>
-            <div class="progress-dot" data-step="4"></div>
-        </div>
+<!-- Vídeo e Canvas -->
+<video id="videoElement" autoplay playsinline></video>
+<canvas id="overlay"></canvas>
 
-        <!-- CARD -->
-        <div class="card" id="card">
-            <div class="card-inner">
-                <canvas class="cloud-canvas" id="cloudCanvas"></canvas>
+<!-- Sobreposição de Scanner -->
+<div class="scanner-overlay">
+    <div class="scanline"></div>
+    <div class="noise"></div>
+</div>
 
-                <!-- CORNERS -->
-                <div class="corner tl"></div>
-                <div class="corner tr"></div>
-                <div class="corner bl"></div>
-                <div class="corner br"></div>
-
-                <!-- REVEAL FLASH -->
-                <div class="reveal-flash" id="revealFlash"></div>
-
-                <!-- OTARIO SEAL -->
-                <div class="otario-seal">
-                    <div class="formula" id="otarioFormula">
-                        <span class="var var-p" data-var="p">p</span>
-                        <span class="sep"> &gt; </span>
-                        <span class="var var-k" data-var="k">k</span>
-                        <span class="sep"> &gt; </span>
-                        <span class="var var-h" data-var="h">h</span>
-                        <span class="sep"> &gt; </span>
-                        <span class="var var-f" data-var="f">f</span>
-                        <span class="sep">~</span>
-                        <span class="var var-t" data-var="t">t(x)</span>
-                    </div>
-                    <div class="sub" id="otarioSub">COPA-AP(TK)</div>
-                    <div class="label">OTARIO</div>
-                </div>
-
-                <!-- FRAMEWORK TAG -->
-                <div class="framework-tag" id="frameworkTag">
-                    <span class="fw" data-fw="K">K<span class="fw-sub">ampus</span></span>
-                    <span class="fw" data-fw="H">H<span class="fw-sub">abitus</span></span>
-                    <span class="fw" data-fw="F">F<span class="fw-sub">rame</span></span>
-                </div>
-
-                <!-- CARD CONTENT -->
-                <div class="card-content">
-                    <div class="glyph-wrap">
-                        <div class="glyph-ring" id="glyphRing"></div>
-                        <div class="glyph" id="glyph">ا</div>
-                    </div>
-                    <div class="word" id="word">Calar</div>
-                    <div class="oracle" id="oracle">
-                        <span class="pt">o silêncio é a primeira palavra</span>
-                    </div>
-                </div>
-
-                <!-- ARITHMETIC INDEX -->
-                <div class="arith-number" id="arithNumber">
-                    <span class="num">I</span> · 1
-                </div>
-
-                <!-- CHOICE OVERLAY -->
-                <div class="choice-overlay" id="choiceOverlay">
-                    <div class="choice-title" id="choiceTitle">escolha · 选择</div>
-                    <div id="choiceButtons"></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- RESET BUTTON -->
-        <button class="reset-btn" id="resetBtn">↺ reiniciar · restart · 重新开始</button>
+<!-- Barra de Status -->
+<div class="status-bar">
+    <div class="status-left">
+        <div id="indicatorDot" class="indicator-dot indicator-detalhes"></div>
+        <span id="statusText" class="status-text">SEM ROSTO DETECTADO</span>
     </div>
+    <div class="status-right">
+        <div class="controls">
+            <button class="btn" id="togglePauseBtn">Pausar</button>
+            <button class="btn" id="switchCameraBtn">Alternar Câmera</button>
+            <button class="btn danger" id="stopCameraBtn">Encerrar Câmera</button>
+        </div>
+        <button class="btn" id="sidePanelToggle">Histórico</button>
+    </div>
+</div>
 
-    <!-- JAVASCRIPT -->
-    <script>
-        (function() {
-            // ---------- STEP DEFINITIONS (BILINGUAL PT / ZH) ----------
-            const STEPS = [
-                {
-                    id: 0, roman: 'I', arabic: 1,
-                    pt: 'Calar', zh: '沉默',
-                    oracle_pt: 'o silêncio é a primeira palavra',
-                    oracle_zh: '沉默是第一个词',
-                    otario_var: 'p', framework: 'K', choices: null
-                },
-                {
-                    id: 1, roman: 'II', arabic: 2,
-                    pt: 'Observar', zh: '观察',
-                    oracle_pt: 'ver sem tocar · mapear o campo',
-                    oracle_zh: '看而不触 · 映射场域',
-                    otario_var: 'k', framework: 'H', choices: null
-                },
-                {
-                    id: 2, roman: 'III', arabic: 3,
-                    pt: 'Perguntar', zh: '询问',
-                    oracle_pt: 'a pergunta abre a porta',
-                    oracle_zh: '问题打开门',
-                    otario_var: 'h', framework: 'F', choices: null
-                },
-                {
-                    id: 3, roman: 'IV', arabic: 4,
-                    pt: 'Anotar', zh: '记录',
-                    oracle_pt: 'escrever é cristalizar o instante',
-                    oracle_zh: '书写即固化瞬间',
-                    otario_var: 'f', framework: 'K', choices: null
-                },
-                {
-                    id: 4, roman: 'V', arabic: 5,
-                    pt: 'Tanger', zh: '触动',
-                    oracle_pt: 'tocar o frame do outro sem invadir',
-                    oracle_zh: '不侵入地触碰他人框架',
-                    otario_var: 't', framework: 'H',
-                    choices: [
-                        { glyph: '✓', pt: 'Afirmar', zh: '肯定', sub_pt: 'validação genérica', sub_zh: '泛泛验证' },
-                        { glyph: '↺', pt: 'Recuar', zh: '退回', sub_pt: 'voltar a Calar', sub_zh: '回到沉默' },
-                        { glyph: '◉', pt: 'Habitar', zh: '居住', sub_pt: 'permanecer no interstício', sub_zh: '停留在间隙' }
-                    ]
-                }
-            ];
+<!-- Painel Lateral -->
+<div class="side-panel" id="sidePanel">
+    <div class="panel-header">
+        <h2>HISTÓRICO DA SESSÃO</h2>
+        <button onclick="humano.fecharPainel()">&times;</button>
+    </div>
+    <div class="metricas">
+        <div><span id="detecoesCount">0</span>Detecções</div>
+        <div><span id="registrosCount">0</span>Registros Únicos</div>
+    </div>
+    <div class="ficha" id="currentFicha">
+        <strong>FICHA TÉCNICA</strong>
+        <p id="fichaContent">Aguardando detecção...</p>
+    </div>
+    <div class="historico">
+        <ul id="historicoLista"></ul>
+    </div>
+    <button class="btn" id="exportarBtn" style="width:100%;">Exportar Relatório (.json)</button>
+    <button class="btn danger" id="limparSessaoBtn" style="width:100%; margin-top:8px;">Limpar Sessão</button>
+</div>
 
-            // ---------- GLOBAL LETTERS POOL (MIXED) ----------
-            const WORLD_LETTERS = [
-                'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
-                'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z',
-                'Α','Β','Γ','Δ','Ε','Ζ','Η','Θ','Ι','Κ','Λ','Μ','Ν','Ξ','Ο','Π','Ρ','Σ','Τ','Υ','Φ','Χ','Ψ','Ω',
-                'α','β','γ','δ','ε','ζ','η','θ','ι','κ','λ','μ','ν','ξ','ο','π','ρ','σ','τ','υ','φ','χ','ψ','ω',
-                'А','Б','В','Г','Д','Е','Ё','Ж','З','И','Й','К','Л','М','Н','О','П','Р','С','Т','У','Ф','Х','Ц','Ч','Ш','Щ','Ъ','Ы','Ь','Э','Ю','Я',
-                'а','б','в','г','д','е','ё','ж','з','и','й','к','л','м','н','о','п','р','с','т','у','ф','х','ц','ч','ш','щ','ъ','ы','ь','э','ю','я',
-                'א','ב','ג','ד','ה','ו','ז','ח','ט','י','כ','ל','מ','נ','ס','ע','פ','צ','ק','ר','ש','ת',
-                'ا','ب','ت','ث','ج','ح','خ','د','ذ','ر','ز','س','ش','ص','ض','ط','ظ','ع','غ','ف','ق','ك','ل','م','ن','ه','و','ي',
-                'ᚠ','ᚢ','ᚦ','ᚨ','ᚱ','ᚲ','ᚷ','ᚹ','ᚺ','ᚾ','ᛁ','ᛃ','ᛇ','ᛈ','ᛉ','ᛊ','ᛏ','ᛒ','ᛖ','ᛗ','ᚠ','ᚢ','ᚦ','ᚨ','ᚱ','ᚲ','ᚷ','ᚹ','ᚺ','ᚾ','ᛁ','ᛃ','ᛇ','ᛈ','ᛉ','ᛊ','ᛏ','ᛒ','ᛖ','ᛗ','ᚠ'
-            ];
+<script>
+/* =========================== ESTRUTURA PRINCIPAL =========================== */
 
-            // ---------- AUDIO CONTEXT (LEAVES, BRANCHES, DROPS, WIND) ----------
-            let audioCtx = null;
-            let audioBuffers = {};
+const humano = (() => {
+    const state = {
+        status: 'SEM_FOTO',
+        cameraAtiva: false,
+        pausado: false,
+        facingMode: 'environment',
+        detectionCount: 0,
+        recordCount: 0,
+        trackedFaces: [],
+        sessionRecords: [],
+        lastExportId: 0,
+        fps: 10,
+        stabilizationDelay: 800,
+        trackExpiry: 3000,
+        mergeProximity: 120
+    };
 
-            function initAudio() {
-                if (audioCtx) return;
-                try {
-                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                    const sampleRate = audioCtx.sampleRate;
+    const elementos = {
+        splashScreen: document.getElementById('splashScreen'),
+        startButton: document.getElementById('startButton'),
+        disclaimerText: document.getElementById('disclaimerText'),
+        statusText: document.getElementById('statusText'),
+        indicatorDot: document.getElementById('indicatorDot'),
+        detecoesCount: document.getElementById('detecoesCount'),
+        registrosCount: document.getElementById('registrosCount'),
+        currentFicha: document.getElementById('fichaContent'),
+        historicoLista: document.getElementById('historicoLista'),
+        togglePauseBtn: document.getElementById('togglePauseBtn'),
+        switchCameraBtn: document.getElementById('switchCameraBtn'),
+        stopCameraBtn: document.getElementById('stopCameraBtn'),
+        sidePanelToggle: document.getElementById('sidePanelToggle'),
+        sidePanel: document.getElementById('sidePanel'),
+        exportarBtn: document.getElementById('exportarBtn'),
+        limparSessaoBtn: document.getElementById('limparSessaoBtn')
+    };
 
-                    // Leaf
-                    const leafDur = 0.5;
-                    const leafLen = sampleRate * leafDur;
-                    const leafBuf = audioCtx.createBuffer(1, leafLen, sampleRate);
-                    const leafData = leafBuf.getChannelData(0);
-                    for (let i = 0; i < leafLen; i++) {
-                        const t = i / leafLen;
-                        const env = Math.pow(1 - t, 2.5);
-                        const noise = (Math.random() * 2 - 1);
-                        leafData[i] = noise * env * 0.12;
-                    }
-                    audioBuffers.leaf = leafBuf;
+    let video = document.getElementById('videoElement');
+    let canvas = document.getElementById('overlay');
+    let ctx = canvas.getContext('2d');
+    let mpFaceDetection;
+    let camera;
 
-                    // Branch
-                    const branchDur = 0.35;
-                    const branchLen = sampleRate * branchDur;
-                    const branchBuf = audioCtx.createBuffer(1, branchLen, sampleRate);
-                    const branchData = branchBuf.getChannelData(0);
-                    for (let i = 0; i < branchLen; i++) {
-                        const t = i / branchLen;
-                        const env = Math.pow(1 - t, 4);
-                        const crack = (Math.random() < 0.02) ? (Math.random() * 2 - 1) * 3 : 0;
-                        const noise = (Math.random() * 2 - 1) * 0.4;
-                        branchData[i] = (noise + crack) * env * 0.15;
-                    }
-                    audioBuffers.branch = branchBuf;
+    /* =========================== INICIALIZAÇÃO =========================== */
 
-                    // Drop
-                    const dropDur = 0.25;
-                    const dropLen = sampleRate * dropDur;
-                    const dropBuf = audioCtx.createBuffer(1, dropLen, sampleRate);
-                    const dropData = dropBuf.getChannelData(0);
-                    for (let i = 0; i < dropLen; i++) {
-                        const t = i / dropLen;
-                        const env = Math.pow(1 - t, 6);
-                        const freq = 800 + Math.random() * 1200;
-                        const osc = Math.sin(2 * Math.PI * freq * t / sampleRate) * 0.5;
-                        const noise = (Math.random() * 2 - 1) * 0.15;
-                        dropData[i] = (osc + noise) * env * 0.1;
-                    }
-                    audioBuffers.drop = dropBuf;
+    function init() {
+        elementos.startButton.addEventListener('click', iniciarSistema);
+        elementos.togglePauseBtn.addEventListener('click', alternarPausa);
+        elementos.switchCameraBtn.addEventListener('click', alternarCamera);
+        elementos.stopCameraBtn.addEventListener('click', encerrarCamera);
+        elementos.sidePanelToggle.addEventListener('click', abrirPainel);
+        elementos.exportarBtn.addEventListener('click', exportarRelatorio);
+        elementos.limparSessaoBtn.addEventListener('click', limparSessao);
 
-                    // Wind
-                    const windDur = 1.2;
-                    const windLen = sampleRate * windDur;
-                    const windBuf = audioCtx.createBuffer(1, windLen, sampleRate);
-                    const windData = windBuf.getChannelData(0);
-                    for (let i = 0; i < windLen; i++) {
-                        const t = i / windLen;
-                        const env = Math.sin(Math.PI * t);
-                        const noise = (Math.random() * 2 - 1) * 0.3;
-                        windData[i] = noise * env * 0.08;
-                    }
-                    audioBuffers.wind = windBuf;
-                } catch (e) {
-                    /* silent */
-                }
+        carregarHistorico();
+        desenharCanvas();
+    }
+
+    function iniciarSistema() {
+        elementos.splashScreen.style.display = 'none';
+        if (!mpFaceDetection) {
+            try {
+                mpFaceDetection = new FaceDetection({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection@0.4/${file}` });
+                mpFaceDetection.setOptions({
+                    model: 'short',
+                    minDetectionConfidence: 0.6,
+                    minTrackingConfidence: 0.6
+                });
+                mpFaceDetection.onResults(onFacesDetected);
+            } catch (e) {
+                console.error("Erro ao carregar MediaPipe:", e);
+                atualizarStatus("ERRO CRÍTICO: Biblioteca MediaPipe indisponível.", 'perigo');
+                return;
             }
+        }
+        iniciarCamera();
+    }
 
-            function playRandomSound() {
-                if (!audioCtx || !audioBuffers) return;
-                try {
-                    if (audioCtx.state === 'suspended') audioCtx.resume();
-                    const keys = ['leaf', 'branch', 'drop', 'wind'];
-                    const key = keys[Math.floor(Math.random() * keys.length)];
-                    const buffer = audioBuffers[key];
-                    if (!buffer) return;
+    async function iniciarCamera() {
+        let stream;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: state.facingMode } });
+            state.cameraAtiva = true;
+            video.srcObject = stream;
 
-                    const source = audioCtx.createBufferSource();
-                    source.buffer = buffer;
+            // Iniciar detecção
+            if (camera) camera.stop();
+            camera = new Camera(video, {
+                onFrame: async () => {
+                    await mpFaceDetection.send({ image: video });
+                },
+                width: 640,
+                height: 480
+            });
+            camera.start();
+            atualizarStatus("DETECTANDO...", 'detalhes');
+        } catch (err) {
+            console.error("Erro ao acessar câmera:", err);
+            atualizarStatus("ERRO NA CÂMERA: Permissão negada ou dispositivo indisponível.", 'perigo');
+        }
+    }
 
-                    const filter = audioCtx.createBiquadFilter();
-                    filter.type = 'lowpass';
-                    filter.frequency.value = 800 + Math.random() * 2000;
-                    filter.Q.value = 0.5;
+    function encerrarCamera() {
+        if (camera) camera.stop();
+        video.srcObject = null;
+        state.cameraAtiva = false;
+        state.pausado = false;
+        elementos.togglePauseBtn.textContent = "Pausar";
+        atualizarStatus("CÂMERA ENCERRADA.", 'perigo');
+        limparOverlay();
+    }
 
-                    const gain = audioCtx.createGain();
-                    gain.gain.setValueAtTime(0.06 + Math.random() * 0.06, audioCtx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+    function alternarPausa() {
+        if (!state.cameraAtiva) return;
+        state.pausado = !state.pausado;
+        elementos.togglePauseBtn.textContent = state.pausado ? "Retomar" : "Pausar";
+        if (state.pausado) {
+            atualizarStatus("INDEXAÇÃO PAUSADA.", 'alerta');
+        } else {
+            atualizarStatus("RETOMANDO DETECÇÃO...", 'detalhes');
+        }
+    }
 
-                    source.connect(filter);
-                    filter.connect(gain);
-                    gain.connect(audioCtx.destination);
-                    source.start();
-                } catch (e) {
-                    /* silent */
-                }
-            }
+    function alternarCamera() {
+        if (!state.cameraAtiva) return;
+        encerrarCamera();
+        state.facingMode = state.facingMode === 'environment' ? 'user' : 'environment';
+        setTimeout(iniciarCamera, 500); // Pequeno delay para estabilizar mudança
+    }
 
-            // ---------- GLOBAL STATE ----------
-            let currentStep = 0;
-            let showingChoice = false;
-            let choiceLocked = false;
-            let lastLetterIndex = -1;
-            let isAnimating = false;
-            let lastLang = null;
+    /* =========================== DETECÇÃO FACIAL =========================== */
 
-            // Cloud effect state
-            let cloudParticles = [];
-            let currentProfile = 'light';
-            let targetProfile = 'light';
-            let profileTransition = 1;
+    function onFacesDetected(results) {
+        if (state.pausado) return;
 
-            // DOM elements
-            const app = document.getElementById('app');
-            const card = document.getElementById('card');
-            const glyphEl = document.getElementById('glyph');
-            const wordEl = document.getElementById('word');
-            const oracleEl = document.getElementById('oracle');
-            const arithNumberEl = document.getElementById('arithNumber');
-            const glyphRing = document.getElementById('glyphRing');
-            const progressDots = document.querySelectorAll('.progress-dot');
-            const resetBtn = document.getElementById('resetBtn');
-            const choiceOverlay = document.getElementById('choiceOverlay');
-            const choiceButtons = document.getElementById('choiceButtons');
-            const choiceTitle = document.getElementById('choiceTitle');
-            const revealFlash = document.getElementById('revealFlash');
-            const canvas = document.getElementById('cloudCanvas');
-            const ctx = canvas.getContext('2d');
-            const frameworkTag = document.getElementById('frameworkTag');
-            const otarioFormula = document.getElementById('otarioFormula');
+        const now = Date.now();
+        const detectedFaces = results.detections || [];
 
-            // Random world letter (never repeats adjacent)
-            function getRandomLetter() {
-                let idx;
-                do {
-                    idx = Math.floor(Math.random() * WORLD_LETTERS.length);
-                } while (idx === lastLetterIndex && WORLD_LETTERS.length > 1);
-                lastLetterIndex = idx;
-                return WORLD_LETTERS[idx];
-            }
+        // Atualizar métricas de detecção
+        state.detectionCount += detectedFaces.length;
+        atualizarMetricas();
 
-            // Cloud particles for psychedelic mist effect
-            function initCloudParticles() {
-                const rect = card.getBoundingClientRect();
-                const w = rect.width / (window.devicePixelRatio || 1);
-                const h = rect.height / (window.devicePixelRatio || 1);
-                const profile = { light: { count: 4, speed: 0.12, size: 200, alpha: 0.25 },
-                                   intense: { count: 10, speed: 0.4, size: 250, alpha: 0.65 } }[currentProfile];
-                cloudParticles = [];
-                const total = Math.floor(profile.count * 4);
-                for (let i = 0; i < total; i++) {
-                    cloudParticles.push({
-                        x: Math.random() * w, y: Math.random() * h,
-                        r: profile.size * (0.4 + Math.random() * 0.8),
-                        vx: (Math.random() - 0.5) * profile.speed * 2,
-                        vy: (Math.random() - 0.5) * profile.speed * 2,
-                        phase: Math.random() * Math.PI * 2,
-                        speed: 0.005 + Math.random() * 0.02
-                    });
-                }
-            }
+        // Limpar trilhas expiradas
+        state.trackedFaces = state.trackedFaces.filter(f => (now - f.lastSeen) < state.trackExpiry);
 
-            // Animate clouds
-            function drawCloud() {
-                const rect = card.getBoundingClientRect();
-                const w = rect.width / (window.devicePixelRatio || 1);
-                const h = rect.height / (window.devicePixelRatio || 1);
-                if (profileTransition < 1) profileTransition += 0.02;
-                const from = { light: { count:4,speed:0.12,size:200,alpha:0.25 },
-                               intense: { count:10,speed:0.4,size:250,alpha:0.65 } }[currentProfile];
-                const to = { light: { count:4,speed:0.12,size:200,alpha:0.25 },
-                             intense: { count:10,speed:0.4,size:250,alpha:0.65 } }[targetProfile];
-                const t = Math.min(profileTransition,1);
-                const blended = {
-                    count: from.count + (to.count - from.count) * t,
-                    speed: from.speed + (to.speed - from.speed) * t,
-                    size: from.size + (to.size - from.size) * t,
-                    alpha: from.alpha + (to.alpha - from.alpha) * t
+        // Processar cada rosto detectado
+        detectedFaces.forEach(detection => {
+            const bbox = detection.boundingBox;
+            const cx = (bbox.xCenter + bbox.width / 2) * video.videoWidth; // Normalizar coordenada X
+            const cy = (bbox.yCenter + bbox.height / 2) * video.videoHeight;
+
+            // Buscar trilha correspondente
+            let tracked = state.trackedFaces.find(tf => 
+                Math.hypot(tf.cx - cx, tf.cy - cy) < state.mergeProximity &&
+                (now - tf.lastSeen) < state.trackExpiry
+            );
+
+            if (!tracked) {
+                // Nova trilha
+                const faceId = state.trackedFaces.length > 0 ? Math.max(...state.trackedFaces.map(t => t.id)) + 1 : 1;
+                tracked = {
+                    id: faceId,
+                    cx, cy,
+                    createdAt: now,
+                    lastSeen: now,
+                    stabilized: false,
+                    recordGenerated: false,
+                    detection: detection
                 };
-                ctx.clearRect(0,0,w,h);
-                const grad = ctx.createRadialGradient(w/2, h/2,0,w/2,h/2,Math.max(w,h)*0.7);
-                grad.addColorStop(0, `rgba(255, 140, 180, 0.12)`);
-                grad.addColorStop(1, 'rgba(0,0,0,0)');
-                ctx.fillStyle = grad;
-                ctx.fillRect(0,0,w,h);
-                for (let i=0;i<cloudParticles.length;i++) {
-                    const p = cloudParticles[i];
-                    p.phase += p.speed;
-                    p.x += p.vx + Math.sin(p.phase) * 0.3;
-                    p.y += p.vy + Math.cos(p.phase * 1.3) * 0.2;
-                    if (p.x < -p.r) p.x = w + p.r;
-                    if (p.x > w + p.r) p.x = -p.r;
-                    if (p.y < -p.r) p.y = h + p.r;
-                    if (p.y > h + p.r) p.y = -p.r;
-                    const pg = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r);
-                    const alpha = blended.alpha * 0.6 * (0.6 + 0.4 * Math.sin(p.phase * 2));
-                    const rr = 255; const gg = 140 + Math.sin(p.phase)*40; const bb = 180 - Math.sin(p.phase)*30;
-                    pg.addColorStop(0, `rgba(${rr},${gg},${bb},${alpha})`);
-                    pg.addColorStop(0.5, `rgba(${rr},${gg},${bb},${alpha*0.3})`);
-                    pg.addColorStop(1, `rgba(${rr},${gg},${bb},0)`);
-                    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fillStyle = pg; ctx.fill();
-                }
-                requestAnimationFrame(drawCloud);
+                state.trackedFaces.push(tracked);
+            } else {
+                // Atualizar trilha existente
+                tracked.cx = cx;
+                tracked.cy = cy;
+                tracked.lastSeen = now;
+                tracked.detection = detection;
             }
 
-            // Random star particles for additional depth
-            function initStarfield() {
-                const starfield = document.getElementById('starfield');
-                const maxStars = 70;
-                for (let i=0;i<maxStars;i++) {
-                    const star = document.createElement('div');
-                    star.className = 'star';
-                    const size = Math.random() * 2 + 1;
-                    star.style.width = size + 'px';
-                    star.style.height = size + 'px';
-                    star.style.left = Math.random() * 100 + '%';
-                    star.style.top = Math.random() * 100 + '%';
-                    const dur = 2 + Math.random() * 5;
-                    star.style.setProperty('--twinkle-dur', dur + 's');
-                    starfield.appendChild(star);
+            // Checar estabilização após atraso
+            if (!tracked.stabilized && (now - tracked.createdAt) > state.stabilizationDelay) {
+                tracked.stabilized = true;
+                // Verificar se já foi registrado nessa sessão
+                const alreadyRegistered = state.sessionRecords.some(r => r.tempTrackId === tracked.id);
+                if (!tracked.recordGenerated && !alreadyRegistered) {
+                    tracked.recordGenerated = true;
+                    gerarFicha(tracked);
                 }
             }
+        });
 
-            // Trigger glitch overlay occasionally
-            function triggerGlitch() {
-                const ov = document.getElementById('glitchOverlay');
-                ov.style.opacity = '1';
-                ov.style.animation = 'none';
-                ov.offsetHeight;
-                ov.style.animation = 'glitchPulse 0.8s ease-in-out';
-                setTimeout(() => ov.style.opacity = '0', 800);
+        // Atualizar status geral
+        if (detectedFaces.length === 0 && state.trackedFaces.length === 0) {
+            atualizarStatus("SEM ROSTO DETECTADO", 'detalhes');
+        } else if (detectedFaces.length > 1) {
+            atualizarStatus(`ANALISANDO ${detectedFaces.length} ROSTOS...`, 'alerta');
+        } else {
+            const activeTrack = state.trackedFaces.find(tf => (now - tf.lastSeen) < state.trackExpiry);
+            if (activeTrack?.stabilized && activeTrack.recordGenerated) {
+                atualizarStatus("REGISTRO GERADO", 'detalhes');
+            } else {
+                atualizarStatus("ANALISANDO...", 'alerta');
             }
+        }
 
-            // Canvas resize & init
-            function resizeCanvas() {
-                const rect = card.getBoundingClientRect();
-                const dpr = window.devicePixelRatio || 1;
-                canvas.width = rect.width * dpr;
-                canvas.height = rect.height * dpr;
-                canvas.style.width = rect.width + 'px';
-                canvas.style.height = rect.height + 'px';
-                ctx.setTransform(1,0,0,1,0,0);
-                ctx.scale(dpr, dpr);
-                initCloudParticles();
+        // Desenhar na tela
+        desenharElementos(results.detections);
+    }
+
+    /* =========================== GERAÇÃO DE FICHA =========================== */
+
+    const nomesSinteticos = ["AXIOM-7", "NOVA-X", "ZEUS-9", "LYRA-B", "ORION-3", "VEGA-P", "THANE-Q", "MIRA-L"];
+    const perfisNarrativos = ["OBSERVADOR", "NÓ URBANO", "AGENTE ANÔNIMO", "PRESENÇA RECORRENTE", "ENTIDADE NÃO CLASSIFICADA", "SINAL HUMANO", "ARQUIVO TEMPORÁRIO"];
+
+    function gerarFicha(faceTrack) {
+        const id = state.recordCount + 1;
+        state.recordCount = id;
+
+        const nome = nomesSinteticos[Math.floor(Math.random() * nomesSinteticos.length)] + "-" + String(id).padStart(4, '0');
+        const idade = Math.floor(Math.random() * (60 - 18 + 1)) + 18;
+        const email = `${nome.toLowerCase().replace(/[^a-z0-9]/g, '.')}@example.invalid`;
+        const documento = `ID-DOC-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+        const perfil = perfisNarrativos[Math.floor(Math.random() * perfisNarrativos.length)];
+        const score = (Math.random() * (99.9 - 85.0) + 85.0).toFixed(1);
+        const now = new Date();
+        const sessionCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+        const registroId = `HUM-${String(state.recordCount).padStart(6, '0')}`;
+
+        const ficha = {
+            id: registroId,
+            nome,
+            idade,
+            email,
+            documento,
+            perfil,
+            score,
+            dataHora: now.toLocaleString('pt-BR'),
+            sessionCode,
+            tempTrackId: faceTrack.id,
+            status: "PROCESSAMENTO CONCLUÍDO"
+        };
+
+        state.sessionRecords.push(ficha);
+        salvarHistorico();
+        exibirFicha(ficha);
+        atualizarMetricas();
+
+        console.log("[HUMANO.EXE] FICHA GERADA:", ficha);
+    }
+
+    /* =========================== INTERFACE =========================== */
+
+    function atualizarStatus(texto, classe = 'detalhes') {
+        elementos.statusText.textContent = texto;
+        elementos.statusText.className = 'status-text';
+        elementos.statusText.classList.add(classe);
+        elementos.indicatorDot.className = 'indicator-dot';
+        elementos.indicatorDot.classList.add(`indicator-${classe}`);
+    }
+
+    function atualizarMetricas() {
+        elementos.detecoesCount.textContent = state.detectionCount;
+        elementos.registrosCount.textContent = state.recordCount;
+    }
+
+    function exibirFicha(ficha) {
+        elementos.currentFicha.innerHTML = `
+            <div style="border-bottom:1px solid var(--border-color); padding-bottom:8px; margin-bottom:8px;">
+              <strong>${ficha.id}</strong>
+            </div>
+            <div style="display:grid; grid-template-columns:70px auto; gap:4px 8px;">
+              <span>Nome:</span>
+              <span style="color:var(--amber);">${ficha.nome}</span>
+              <span>Idade:</span>
+              <span style="color:var(--amber);">${ficha.idade} anos</span>
+              <span>E-mail:</span>
+              <span style="word-break:break-all;">${ficha.email}</span>
+              <span>Documento:</span>
+              <span style="color:var(--red);">${ficha.documento}</span>
+              <span>*(NÃO OFICIAL)*</span>
+              <span>Perfil:</span>
+              <span style="color:var(--accent-color);">${ficha.perfil}</span>
+              <span>Score:</span>
+              <span style="color:var(--amber);">${ficha.score}%</span>
+              <span>Status:</span>
+              <span>${ficha.status}</span>
+              <span>Data/Hora:</span>
+              <span>${ficha.dataHora}</span>
+              <span>Sessão:</span>
+              <span>${ficha.sessionCode}</span>
+            </div>
+            <small style="display:block; margin-top:5px; color:var(--red);">⚠️ REGISTRO SINTÉTICO GERADO. IDENTIDADE CIVIL NÃO VERIFICADA.</small>
+        `;
+    }
+
+    /* =========================== RENDERIZAÇÃO DO CANVAS =========================== */
+
+    function desenharElementos(detections) {
+        const w = canvas.width = video.videoWidth || innerWidth;
+        const h = canvas.height = video.videoHeight || innerHeight;
+        
+        // Ajustar escala se necessário
+        if (video.videoWidth && canvas.width !== video.videoWidth) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+        }
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        detections.forEach((detection, index) => {
+            const bbox = detection.boundingBox;
+            const startX = bbox.xCenter * canvas.width;
+            const startY = bbox.yCenter * canvas.height;
+            const boxWidth = bbox.width * canvas.width;
+            const boxHeight = bbox.height * canvas.height;
+
+            const cx = startX + boxWidth / 2;
+            const cy = startY + boxHeight / 2;
+
+            // Cor da moldura: Determinar se é uma trilha já registrada
+            const tracked = state.trackedFaces.find(tf => 
+                Math.hypot(tf.cx - cx, tf.cy - cy) < state.mergeProximity &&
+                (Date.now() - tf.lastSeen) < state.trackExpiry
+            );
+            const color = tracked?.recordGenerated ? '#ff3355' : (tracked?.stabilized ? '#ffaa00' : '#00ffcc');
+
+            // Moldura principal
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            ctx.setLineDash([5, 5]);
+            ctx.strokeRect(startX, startY, boxWidth, boxHeight);
+            ctx.setLineDash([]);
+
+            // Detalhes no canto superior da moldura
+            ctx.fillStyle = color;
+            ctx.font = "14px monospace";
+            ctx.textAlign = "left";
+            ctx.fillText(`FACE-${index+1}`, startX + 5, startY - 12);
+            ctx.textAlign = "center";
+            ctx.fillText(`Tracking...`, cx, startY - 28);
+
+            // Coordenadas decorativas
+            const offset = 8;
+            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = 'rgba(0, 255, 204, 0.4)';
+            ctx.beginPath();
+            ctx.moveTo(startX, startY + offset); ctx.lineTo(startX, startY); ctx.lineTo(startX + offset, startY);
+            ctx.moveTo(startX + boxWidth, startY + offset); ctx.lineTo(startX + boxWidth, startY); ctx.lineTo(startX + boxWidth - offset, startY);
+            ctx.moveTo(startX, startY + boxHeight - offset); ctx.lineTo(startX, startY + boxHeight); ctx.lineTo(startX + offset, startY + boxHeight);
+            ctx.moveTo(startX + boxWidth, startY + boxHeight - offset); ctx.lineTo(startX + boxWidth, startY + boxHeight); ctx.lineTo(startX + boxWidth - offset, startY + boxHeight);
+            ctx.stroke();
+
+            // Ícone de confirmação ou alerta
+            if (tracked?.recordGenerated) {
+                ctx.fillStyle = '#ff3355';
+                ctx.beginPath();
+                ctx.arc(startX + boxWidth - 10, startY + boxHeight - 10, 6, 0, 2 * Math.PI);
+                ctx.fill();
             }
+        });
+    }
 
-            // ---------- UI RENDER ----------
-            function randomLang() {
-                const langs = ['pt','zh'];
-                let lang;
-                do {
-                    lang = langs[Math.floor(Math.random()*langs.length)];
-                } while (lang === lastLang && langs.length > 1);
-                lastLang = lang;
-                return lang;
+    function limparOverlay() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function desenharCanvas() {
+        desenharElementos([]);
+        requestAnimationFrame(desenharCanvas);
+    }
+
+    /* =========================== PAINEL LATERAL =========================== */
+
+    function abrirPainel() {
+        elementos.sidePanel.classList.add('open');
+    }
+
+    function fecharPainel() {
+        elementos.sidePanel.classList.remove('open');
+    }
+
+    /* =========================== PERSISTÊNCIA LOCAL =========================== */
+
+    function salvarHistorico() {
+        localStorage.setItem('humanoSessionRecords', JSON.stringify(state.sessionRecords));
+        localStorage.setItem('humanoMetrics', JSON.stringify({
+            detecoes: state.detectionCount,
+            registros: state.recordCount
+        }));
+    }
+
+    function carregarHistorico() {
+        const savedRecords = localStorage.getItem('humanoSessionRecords');
+        if (savedRecords) {
+            try {
+                state.sessionRecords = JSON.parse(savedRecords);
+                state.detectionCount = 0;
+                state.recordCount = state.sessionRecords.length;
+            } catch(e) {
+                console.warn("Falha ao carregar histórico.");
             }
+        }
+        // Carregar métricas
+        const savedMetrics = localStorage.getItem('humanoMetrics');
+        if (savedMetrics) {
+            try {
+                const metrics = JSON.parse(savedMetrics);
+                state.detectionCount = metrics.detecoes || 0;
+            } catch(e){}
+        }
+        atualizarMetricas();
+        // Renderizar histórico
+        renderizarHistorico();
+    }
 
-            function renderStep() {
-                if (isAnimating) return;
-                isAnimating = true;
-                const step = STEPS[currentStep];
-                const lang = randomLang();
+    function renderizarHistorico() {
+        elementos.historicoLista.innerHTML = '';
+        if (state.sessionRecords.length === 0) {
+            elementos.historicoLista.innerHTML = '<li style="text-align:center; color:#aaa;">Nenhum registro.</li>';
+            return;
+        }
+        state.sessionRecords.slice().reverse().forEach(record => {
+            const li = document.createElement('li');
+            li.innerHTML = `<strong>${record.id}</strong> - ${record.nome} <button class="del-btn" onclick="humano.removerRegistro('${record.id}')">X</button>`;
+            elementos.historicoLista.appendChild(li);
+        });
+    }
 
-                const letter = getRandomLetter();
-                glyphEl.textContent = letter;
-                glyphEl.classList.remove('small');
-                if (letter.length > 1 || /[\u{10000}-\u{10FFFF}]/u.test(letter)) {
-                    glyphEl.classList.add('small');
-                }
-                glyphRing.style.transform = `rotate(${Math.random()*360}deg) scale(${0.95+Math.random()*0.1})`;
+    /* =========================== FUNÇÕES AUXILIARES =========================== */
 
-                // Word display: show both PT and ZH in one line
-                wordEl.innerHTML = `<span class="bilingual-word"><span class="pt">${step.pt}</span> · <span class="zh">${step.zh}</span></span>`;
+    function removerRegistro(id) {
+        state.sessionRecords = state.sessionRecords.filter(r => r.id !== id);
+        salvarHistorico();
+        renderizarHistorico();
+        elementos.registrosCount.textContent = state.recordCount = state.sessionRecords.length;
+    }
 
-                // Oracle text: display based on language selection
-                oracleEl.innerHTML = `<span class="${lang === 'pt' ? 'pt' : 'zh'}">${step['oracle_' + lang]}</span>`;
+    function limparSessao() {
+        if (!confirm("Limpar toda a sessão? Esta ação não pode ser desfeita.")) return;
+        state.sessionRecords = [];
+        state.detectionCount = 0;
+        state.recordCount = 0;
+        state.trackedFaces = [];
+        localStorage.removeItem('humanoSessionRecords');
+        localStorage.removeItem('humanoMetrics');
+        elementos.fichaContent.textContent = "Sessão limpa.";
+        elementos.historicoLista.innerHTML = '<li style="text-align:center; color:#aaa;">Nenhum registro.</li>';
+        atualizarMetricas();
+    }
 
-                // Arithmetic index
-                arithNumberEl.innerHTML = `<span class="num">${step.roman}</span> · ${step.arabic}`;
+    function exportarRelatorio() {
+        if (state.sessionRecords.length === 0) {
+            alert("Nenhum registro para exportar.");
+            return;
+        }
+        const conteudo = {
+            titulo: "HUMANO.EXEE - RELATÓRIO DE SIMULAÇÃO",
+            descricao: "Este relatório contém dados sintéticos e fictícios. Não representam identificação biométrica ou civil real.",
+            timestamp: new Date().toISOString(),
+            metricas: {
+                deteccoesFaciais: state.detectionCount,
+                registrosUnicos: state.recordCount
+            },
+            registros: state.sessionRecords
+        };
+        const blob = new Blob([JSON.stringify(conteudo, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `humano_exe_simulacao_${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
 
-                // Update framework tags
-                frameworkTag.querySelectorAll('.fw').forEach(fw=>{
-                    fw.classList.remove('active');
-                    if (fw.dataset.fw === step.framework) fw.classList.add('active');
-                });
+    return {
+        init,
+        iniciarSistema,
+        alternarPausa,
+        alternarCamera,
+        encerrarCamera,
+        abrirPainel,
+        fecharPainel,
+        removerRegistro,
+        limparSessao,
+        exportarRelatorio
+    };
+})();
 
-                // Update Otario formula var
-                otarioFormula.querySelectorAll('.var').forEach(v=>{
-                    v.classList.remove('active');
-                    if (v.dataset.var === step.otario_var) v.classList.add('active');
-                });
-
-                // Cloud intensity based on step
-                targetProfile = Math.random() < 0.33 ? 'light' : 'intense';
-                profileTransition = 0;
-                setTimeout(()=>{ currentProfile = targetProfile; },300);
-
-                // Card shake if step is odd (adds visual variety)
-                if (step.id % 2 === 1) card.classList.add('error-state');
-                else card.classList.remove('error-state');
-
-                // Progress dots
-                progressDots.forEach((dot,i)=>{
-                    dot.classList.remove('active','done');
-                    if (i < currentStep) dot.classList.add('done');
-                    if (i === currentStep) dot.classList.add('active');
-                });
-
-                // Show choice if step has choices
-                if (step.choices) {
-                    showChoices(step);
-                    isAnimating = false;
-                    return;
-                }
-
-                // Trigger flash effect
-                revealFlash.classList.add('active');
-                setTimeout(()=>revealFlash.classList.remove('active'),300);
-
-                // Move to next step after delay
-                setTimeout(()=>{
-                    card.classList.add('fade-out');
-                    setTimeout(()=>{
-                        if (currentStep < STEPS.length - 1) currentStep++;
-                        else currentStep = 0;
-                        renderStep();
-                        card.classList.remove('fade-out');
-                        isAnimating = false;
-                    },300);
-                },1200);
-            }
-
-            // ---------- CHOICE HANDLING ----------
-            function showChoices(step) {
-                showingChoice = true;
-                choiceLocked = false;
-                choiceButtons.innerHTML = '';
-                choiceTitle.textContent = 'escolha · 选择'; // bilingual static title
-
-                step.choices.forEach((choice, idx) => {
-                    const btn = document.createElement('button');
-                    btn.className = 'choice-btn';
-                    const lang = randomLang();
-                    const label = choice[lang] || choice.pt;
-                    const sub = choice['sub_' + lang] || choice.sub_pt || '';
-                    btn.innerHTML = `
-                        <span class="btn-glyph">${choice.glyph}</span>
-                        <span class="btn-label">
-                            <span>${label}</span>
-                            ${sub ? `<span class="sub">${sub}</span>` : ''}
-                        </span>
-                    `;
-                    btn.addEventListener('click', e => {
-                        e.stopPropagation();
-                        if (choiceLocked) return;
-                        choiceLocked = true;
-                        playRandomSound();
-                        triggerGlitch();
-                        handleChoice(choice);
-                    });
-                    btn.style.opacity = '0';
-                    btn.style.transform = 'translateY(10px)';
-                    setTimeout(()=>{ btn.style.opacity='1'; btn.style.transform='translateY(0)'; }, idx*80);
-                    choiceButtons.appendChild(btn);
-                });
-                choiceOverlay.classList.add('visible');
-            }
-
-            function hideChoices() {
-                showingChoice = false;
-                choiceLocked = false;
-                choiceOverlay.classList.remove('visible');
-            }
-
-            function handleChoice(choice) {
-                if (currentStep < STEPS.length - 1) currentStep++;
-                else currentStep = 0;
-                hideChoices();
-                renderStep();
-            }
-
-            // ---------- NAVIGATION ----------
-            function advanceStep() {
-                if (showingChoice || isAnimating) return;
-                playRandomSound();
-                triggerGlitch();
-                const step = STEPS[currentStep];
-                if (step.choices) {
-                    showChoices(step);
-                } else {
-                    if (currentStep < STEPS.length - 1) currentStep++;
-                    else currentStep = 0;
-                    renderStep();
-                }
-            }
-
-            function resetProtocol() {
-                if (isAnimating) return;
-                playRandomSound();
-                triggerGlitch();
-                currentStep = 0;
-                hideChoices();
-                renderStep();
-            }
-
-            // ---------- EVENT BINDINGS ----------
-            card.addEventListener('click', e => {
-                if (e.target.closest('.choice-btn')) return;
-                if (showingChoice) return;
-                advanceStep();
-            });
-
-            resetBtn.addEventListener('click', e => {
-                e.stopPropagation();
-                resetProtocol();
-            });
-
-            // ---------- INITIALISATION ----------
-            function init() {
-                resizeCanvas();
-                initStarfield();
-                initAudio();
-                requestAnimationFrame(drawCloud);
-                document.addEventListener('touchstart', initAudio, {once:true});
-                document.addEventListener('mousedown', initAudio, {once:true});
-                currentStep = 0;
-                renderStep();
-            }
-
-            window.addEventListener('resize', resizeCanvas);
-            init();
-        })();
+// Iniciar aplicação
+window.addEventListener('load', () => humano.init());
     </script>
 </body>
 </html>
