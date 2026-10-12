@@ -5,16 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>HUMANO.EXE</title>
     <style>
-        /* --- RESET E VARIÁVEIS --- */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
             --bg-color: #0a0a0f;
             --terminal-green: #00ff88;
             --amber: #ffaa00;
             --red: #ff3355;
-            --scanline-color: rgba(0, 255, 136, 0.04);
             --border-color: #222;
             --accent-color: #00ffcc;
+            --purple: #a78bfa;
             --font-mono: 'Courier New', 'Consolas', monospace;
             --transition-fast: 0.2s ease;
             --transition-slow: 0.8s cubic-bezier(0.77, 0, 0.07, 1);
@@ -26,99 +25,262 @@
             color: var(--terminal-green);
             overflow: hidden;
             height: 100vh;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
             position: relative;
         }
 
-        /* --- OVERLAY DE SCANNER --- */
+        /* Scanner overlay */
         .scanner-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            overflow: hidden;
-            z-index: 5;
+            position: absolute; inset: 0;
+            pointer-events: none; overflow: hidden; z-index: 5;
         }
         .scanline {
-            position: absolute;
-            width: 100%;
-            height: 2px;
+            position: absolute; width: 100%; height: 2px;
             background: linear-gradient(90deg, transparent, var(--terminal-green), transparent);
             animation: scan 6s linear infinite;
             opacity: 0.5;
         }
-        @keyframes scan {
-            0% { top: 0; }
-            100% { top: 100%; }
-        }
+        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
         .noise {
-            position: absolute;
-            width: 100%;
-            height: 100%;
+            position: absolute; width: 100%; height: 100%;
             background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.8' type='fractalNoise'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-            opacity: 0.05;
-            pointer-events: none;
+            opacity: 0.05; pointer-events: none;
         }
 
-        /* --- ELEMENTOS DE INTERFACE --- */
         #videoElement, #overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%; object-fit: cover;
         }
-        #overlay {
+        #overlay { pointer-events: none; z-index: 4; }
+        #videoElement { z-index: 1; }
+
+        /* ============================================================ *
+         * DOSSIÊ PANEL - Aparece ao detectar rosto                    *
+         * ============================================================ */
+        .dossier-panel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.9);
+            width: min(420px, 92vw);
+            max-height: 82vh;
+            background: linear-gradient(145deg, rgba(10,15,20,0.97), rgba(5,8,12,0.99));
+            border: 1px solid var(--terminal-green);
+            border-radius: 8px;
+            padding: 16px;
+            z-index: 100;
+            opacity: 0;
+            visibility: hidden;
             pointer-events: none;
-            z-index: 4;
+            transition: opacity 0.4s ease, transform 0.5s cubic-bezier(0.34,1.56,0.64,1), visibility 0.4s;
+            box-shadow: 
+                0 0 40px rgba(0, 255, 136, 0.25),
+                0 0 80px rgba(0, 255, 136, 0.1),
+                inset 0 0 30px rgba(0, 255, 136, 0.03);
+            overflow-y: auto;
         }
-        #videoElement {
-            z-index: 1;
+        .dossier-panel.visible {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+            transform: translate(-50%, -50%) scale(1);
+        }
+        .dossier-panel::before {
+            content: '';
+            position: absolute; inset: -1px;
+            border-radius: 8px;
+            padding: 1px;
+            background: linear-gradient(135deg, var(--terminal-green), transparent 40%, transparent 60%, var(--accent-color));
+            -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            pointer-events: none;
+            animation: borderGlow 3s ease-in-out infinite;
+        }
+        @keyframes borderGlow {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
         }
 
-        /* Status e Indicadores */
-        .status-bar {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: rgba(10, 10, 15, 0.85);
-            border-top: 1px solid var(--border-color);
-            padding: 12px 16px;
+        .dossier-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-bottom: 12px;
+        }
+        .dossier-header .title {
+            font-size: 0.8rem;
+            color: var(--amber);
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px var(--amber);
+        }
+        .dossier-header .status-badge {
+            font-size: 0.6rem;
+            padding: 3px 8px;
+            border: 1px solid var(--accent-color);
+            border-radius: 10px;
+            color: var(--accent-color);
+            letter-spacing: 1px;
+            animation: pulse 1.5s infinite;
+        }
+
+        /* Terminal de digitação */
+        .dossier-terminal {
+            font-size: 0.72rem;
+            line-height: 1.7;
+            color: var(--terminal-green);
+            margin-bottom: 12px;
+            min-height: 200px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            text-shadow: 0 0 5px rgba(0, 255, 136, 0.3);
+        }
+        .dossier-terminal .line {
+            display: block;
+            opacity: 0;
+            animation: lineIn 0.3s ease forwards;
+        }
+        @keyframes lineIn {
+            from { opacity: 0; transform: translateX(-8px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        .dossier-terminal .label { color: #666; }
+        .dossier-terminal .value { color: var(--amber); }
+        .dossier-terminal .cipher { 
+            color: var(--purple); 
+            font-style: italic; 
+            letter-spacing: 1px;
+        }
+        .dossier-terminal .warn { color: var(--red); }
+        .dossier-terminal .ok { color: var(--terminal-green); }
+        .dossier-terminal .cursor {
+            display: inline-block;
+            width: 7px;
+            height: 0.9em;
+            background: var(--terminal-green);
+            vertical-align: middle;
+            animation: blink 0.7s step-end infinite;
+            margin-left: 2px;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        /* Bloco de código índice */
+        .index-code-block {
+            text-align: center;
+            padding: 12px;
+            border: 1px dashed var(--terminal-green);
+            border-radius: 6px;
+            margin: 12px 0;
+            background: rgba(0, 255, 136, 0.05);
+            opacity: 0;
+            transform: scale(0.8);
+            transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.34,1.56,0.64,1);
+        }
+        .index-code-block.visible {
+            opacity: 1;
+            transform: scale(1);
+        }
+        .index-code-block .code-label {
+            font-size: 0.55rem;
+            color: #888;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+        .index-code-block .code-value {
+            font-size: 2.2rem;
+            color: var(--terminal-green);
+            font-weight: bold;
+            letter-spacing: 4px;
+            text-shadow: 
+                0 0 15px var(--terminal-green),
+                0 0 30px var(--terminal-green);
+            animation: codeGlow 1.5s ease-in-out infinite alternate;
+        }
+        @keyframes codeGlow {
+            from { text-shadow: 0 0 10px var(--terminal-green), 0 0 20px var(--terminal-green); }
+            to { text-shadow: 0 0 20px var(--terminal-green), 0 0 40px var(--terminal-green), 0 0 60px rgba(0,255,136,0.5); }
+        }
+        .index-code-block .code-desc {
+            font-size: 0.6rem;
+            color: var(--accent-color);
+            margin-top: 6px;
+            letter-spacing: 1px;
+        }
+
+        /* Ações */
+        .dossier-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 14px;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.4s ease, transform 0.4s ease;
+        }
+        .dossier-actions.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .dossier-btn {
+            flex: 1;
+            background: rgba(0, 255, 136, 0.08);
+            border: 1px solid var(--terminal-green);
+            color: var(--terminal-green);
+            padding: 10px 12px;
+            font-family: inherit;
+            font-size: 0.75rem;
+            letter-spacing: 1px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: var(--transition-fast);
+            text-transform: uppercase;
+        }
+        .dossier-btn:hover:not(:disabled) {
+            background: rgba(0, 255, 136, 0.2);
+            box-shadow: 0 0 12px var(--terminal-green);
+        }
+        .dossier-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        .dossier-btn.primary {
+            background: rgba(0, 255, 136, 0.2);
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.4);
+        }
+        .dossier-btn.danger {
+            border-color: var(--red);
+            color: var(--red);
+        }
+        .dossier-btn.danger:hover:not(:disabled) {
+            background: rgba(255, 51, 85, 0.15);
+            box-shadow: 0 0 12px var(--red);
+        }
+
+        /* Barra de status */
+        .status-bar {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: rgba(10, 10, 15, 0.85);
+            border-top: 1px solid var(--border-color);
+            padding: 12px 16px;
+            display: flex; justify-content: space-between; align-items: center;
             z-index: 10;
             backdrop-filter: blur(5px);
-            gap: 8px;
-            flex-wrap: wrap;
+            gap: 8px; flex-wrap: wrap;
         }
         .status-left, .status-right { display: flex; align-items: center; gap: 12px; }
         .indicator-dot {
-            width: 10px; height: 10px;
-            border-radius: 50%;
-            border: 1px solid currentColor;
-            flex-shrink: 0;
+            width: 10px; height: 10px; border-radius: 50%;
+            border: 1px solid currentColor; flex-shrink: 0;
         }
         .indicator-detalhes { color: var(--terminal-green); background-color: var(--terminal-green); box-shadow: 0 0 8px var(--terminal-green); }
         .indicator-alerta { color: var(--amber); background-color: var(--amber); box-shadow: 0 0 8px var(--amber); }
         .indicator-perigo { color: var(--red); background-color: var(--red); box-shadow: 0 0 8px var(--red); animation: pulse 1.5s infinite; }
         @keyframes pulse { 50% { opacity: 0.5; } }
-        
-        .status-text {
-            font-size: 0.85rem;
-            color: var(--terminal-green);
-            white-space: nowrap;
-        }
+        .status-text { font-size: 0.85rem; color: var(--terminal-green); white-space: nowrap; }
         .status-text.alerta { color: var(--amber); }
         .status-text.perigo { color: var(--red); }
 
-        /* Botões de Controle */
         .controls { display: flex; gap: 8px; flex-wrap: wrap; }
         .btn {
             background: rgba(0, 255, 136, 0.1);
@@ -131,44 +293,30 @@
             transition: var(--transition-fast);
             border-radius: 4px;
         }
-        .btn:hover {
-            background: rgba(0, 255, 136, 0.2);
-            box-shadow: 0 0 8px var(--terminal-green);
-        }
+        .btn:hover { background: rgba(0, 255, 136, 0.2); box-shadow: 0 0 8px var(--terminal-green); }
         .btn.danger { border-color: var(--red); color: var(--red); }
         .btn.danger:hover { background: rgba(255, 51, 85, 0.15); box-shadow: 0 0 8px var(--red); }
         .btn.active { background: rgba(0, 255, 136, 0.3); box-shadow: 0 0 8px var(--terminal-green); }
 
-        /* Painel Lateral de Ficha */
+        /* Painel lateral histórico */
         .side-panel {
-            position: fixed;
-            top: 0;
-            right: -400px;
-            width: 340px;
-            max-width: 90%;
-            height: 100vh;
+            position: fixed; top: 0; right: -400px;
+            width: 340px; max-width: 90%; height: 100vh;
             background: linear-gradient(to bottom, #0a0a0f, #000);
             border-left: 1px solid var(--border-color);
-            padding: 20px;
-            overflow-y: auto;
+            padding: 20px; overflow-y: auto;
             transition: right var(--transition-slow);
             z-index: 20;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
+            display: flex; flex-direction: column; gap: 12px;
         }
         .side-panel.open { right: 0; }
         .panel-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            display: flex; justify-content: space-between; align-items: center;
             border-bottom: 1px solid var(--border-color);
             padding-bottom: 10px;
         }
         .panel-header h2 { font-size: 1rem; color: var(--amber); }
         .panel-header button { background: transparent; border: none; color: var(--terminal-green); font-size: 1.2rem; cursor: pointer; }
-        .panel-header button:hover { color: var(--amber); }
-
         .ficha, .metricas, .historico {
             background: rgba(0, 0, 0, 0.4);
             border: 1px solid var(--border-color);
@@ -179,63 +327,54 @@
         .metricas { display: flex; justify-content: space-around; text-align: center; }
         .metricas div { flex: 1; }
         .metricas div span { display: block; font-size: 1.4rem; color: var(--amber); }
-        .historico ul { list-style: none; max-height: 250px; overflow-y: auto; }
-        .historico li { padding: 8px; border-bottom: 1px solid var(--border-color); font-size: 0.75rem; display: flex; justify-content: space-between; align-items: center; gap: 6px; }
-        .historico li .nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+        .historico ul { list-style: none; max-height: 300px; overflow-y: auto; }
+        .historico li { 
+            padding: 8px; border-bottom: 1px solid var(--border-color); 
+            font-size: 0.75rem; display: flex; justify-content: space-between; 
+            align-items: center; gap: 6px;
+        }
+        .historico li .codigo {
+            color: var(--terminal-green); font-weight: bold;
+            background: rgba(0,255,136,0.1); padding: 2px 6px; border-radius: 3px;
+            font-size: 0.7rem; letter-spacing: 1px;
+        }
+        .historico li .nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; color: var(--amber); }
         .historico .del-btn { color: var(--red); background: none; border: none; cursor: pointer; font-family: inherit; font-size: 0.9rem; padding: 0 4px; }
 
-        /* Tela Inicial */
+        /* Splash */
         .splash-screen {
-            position: fixed;
-            inset: 0;
-            background: var(--bg-color);
-            color: var(--terminal-green);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            padding: 20px;
-            z-index: 1000;
+            position: fixed; inset: 0;
+            background: var(--bg-color); color: var(--terminal-green);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            text-align: center; padding: 20px; z-index: 1000;
         }
         .splash-logo {
-            font-size: 4rem;
-            font-weight: bold;
-            letter-spacing: 4px;
-            color: var(--amber);
-            text-shadow: 0 0 15px var(--amber);
+            font-size: 4rem; font-weight: bold; letter-spacing: 4px;
+            color: var(--amber); text-shadow: 0 0 15px var(--amber);
             margin-bottom: 16px;
         }
         .splash-screen h1 { font-size: 1.2rem; margin-bottom: 8px; }
         .splash-screen p { font-size: 0.9rem; color: #aaa; max-width: 500px; line-height: 1.5; }
         .splash-screen .loading {
-            margin-top: 20px;
-            color: var(--accent-color);
-            font-size: 0.85rem;
-            min-height: 1.2em;
+            margin-top: 20px; color: var(--accent-color);
+            font-size: 0.85rem; min-height: 1.2em;
         }
 
-        /* Rodapé de Disclaimer */
         .disclaimer {
-            position: fixed;
-            bottom: 65px;
-            left: 0;
-            right: 0;
-            text-align: center;
-            font-size: 0.65rem;
-            color: #777;
-            z-index: 6;
-            padding: 8px;
-            pointer-events: none;
+            position: fixed; bottom: 65px; left: 0; right: 0;
+            text-align: center; font-size: 0.65rem; color: #777;
+            z-index: 6; padding: 8px; pointer-events: none;
         }
-        
-        /* Responsividade */
+
         @media (max-width: 600px) {
             .side-panel { width: 90%; }
             .splash-logo { font-size: 2.5rem; }
             .splash-screen h1 { font-size: 1rem; }
             .status-text { font-size: 0.7rem; }
             .btn { padding: 6px 10px; font-size: 0.7rem; }
+            .dossier-panel { padding: 14px; max-height: 88vh; }
+            .dossier-terminal { font-size: 0.68rem; min-height: 180px; }
+            .index-code-block .code-value { font-size: 1.8rem; }
         }
     </style>
 </head>
@@ -244,24 +383,45 @@
 <div class="splash-screen" id="splashScreen">
     <div class="splash-logo">HUMANO.EXE</div>
     <h1>SISTEMA DE INDEXAÇÃO BIOMÉTRICA FICTÍCIA v1.0.0</h1>
-    <p>Iniciando módulos de detecção facial e interface de terminal...</p>
+    <p>Módulos de detecção facial e geração de dossiês sintéticos.</p>
     <div class="loading" id="loadingText">Aguardando ativação...</div>
     <button class="btn" id="startButton" style="margin-top: 16px; padding: 12px 24px; font-size: 1rem;">▶ Ativar Câmera</button>
 </div>
 
-<div class="disclaimer" id="disclaimerText">Simulação interativa. As fichas são fictícias e não representam identificação biométrica ou civil.</div>
+<div class="disclaimer">Simulação interativa. Todos os dossiês são fictícios e gerados proceduralmente. Nenhum dado real é coletado.</div>
 
-<!-- Vídeo e Canvas -->
 <video id="videoElement" autoplay playsinline muted></video>
 <canvas id="overlay"></canvas>
 
-<!-- Sobreposição de Scanner -->
 <div class="scanner-overlay">
     <div class="scanline"></div>
     <div class="noise"></div>
 </div>
 
-<!-- Barra de Status -->
+<!-- ============================================================ *
+     DOSSIÊ - Painel principal de indexação                      *
+     ============================================================ -->
+<div class="dossier-panel" id="dossierPanel" role="dialog" aria-modal="false" aria-labelledby="dossierTitle">
+    <div class="dossier-header">
+        <span class="title" id="dossierTitle">▶ DOSSIÊ · EM CONSTRUÇÃO</span>
+        <span class="status-badge" id="dossierStatus">SCAN</span>
+    </div>
+    
+    <div class="dossier-terminal" id="dossierTerminal"></div>
+    
+    <div class="index-code-block" id="indexCodeBlock">
+        <div class="code-label">código de índice atribuído</div>
+        <div class="code-value" id="indexCodeValue">K-000</div>
+        <div class="code-desc" id="indexCodeDesc">aguardando confirmação</div>
+    </div>
+    
+    <div class="dossier-actions" id="dossierActions">
+        <button class="dossier-btn danger" id="btnRejeitar" disabled>✕ Rejeitar</button>
+        <button class="dossier-btn primary" id="btnIndexar" disabled>◉ Indexar</button>
+    </div>
+</div>
+
+<!-- Barra de status -->
 <div class="status-bar">
     <div class="status-left">
         <div id="indicatorDot" class="indicator-dot indicator-detalhes"></div>
@@ -277,22 +437,18 @@
     </div>
 </div>
 
-<!-- Painel Lateral -->
+<!-- Painel lateral -->
 <div class="side-panel" id="sidePanel">
     <div class="panel-header">
-        <h2>HISTÓRICO DA SESSÃO</h2>
+        <h2>ÍNDICES DA SESSÃO</h2>
         <button id="closePanelBtn">&times;</button>
     </div>
     <div class="metricas">
         <div><span id="detecoesCount">0</span>Detecções</div>
-        <div><span id="registrosCount">0</span>Registros</div>
-    </div>
-    <div class="ficha" id="currentFicha">
-        <strong>FICHA TÉCNICA</strong>
-        <p id="fichaContent" style="margin-top:8px; color:#888;">Aguardando detecção...</p>
+        <div><span id="registrosCount">0</span>Indexados</div>
     </div>
     <div class="historico">
-        <strong style="display:block; margin-bottom:6px;">REGISTROS</strong>
+        <strong style="display:block; margin-bottom:8px; color:var(--amber); font-size:0.75rem;">DOSSIÊS CONFIRMADOS</strong>
         <ul id="historicoLista"></ul>
     </div>
     <button class="btn" id="exportarBtn" style="width:100%;">⬇ Exportar Relatório (.json)</button>
@@ -300,10 +456,8 @@
 </div>
 
 <script type="module">
-/* =========================== IMPORTS =========================== */
 import { FaceDetector, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
 
-/* =========================== ESTRUTURA PRINCIPAL =========================== */
 const humano = (() => {
     const state = {
         cameraAtiva: false,
@@ -314,13 +468,20 @@ const humano = (() => {
         trackedFaces: [],
         sessionRecords: [],
         lastFrameTime: 0,
-        stabilizationDelay: 800,
+        stabilizationDelay: 1000,
         trackExpiry: 3000,
         mergeProximity: 150,
-        detecting: false,
         detectorReady: false,
         videoReady: false,
-        loopRunning: false
+        loopRunning: false,
+        // controle do dossiê
+        dossierActive: false,
+        dossierStep: 0,
+        dossierFaceId: null,
+        dossierData: null,
+        indexCounter: 0,
+        prefixCounter: {},
+        typewriterTimers: []
     };
 
     const elementos = {
@@ -331,7 +492,6 @@ const humano = (() => {
         indicatorDot: document.getElementById('indicatorDot'),
         detecoesCount: document.getElementById('detecoesCount'),
         registrosCount: document.getElementById('registrosCount'),
-        fichaContent: document.getElementById('fichaContent'),
         historicoLista: document.getElementById('historicoLista'),
         togglePauseBtn: document.getElementById('togglePauseBtn'),
         switchCameraBtn: document.getElementById('switchCameraBtn'),
@@ -340,19 +500,54 @@ const humano = (() => {
         sidePanel: document.getElementById('sidePanel'),
         closePanelBtn: document.getElementById('closePanelBtn'),
         exportarBtn: document.getElementById('exportarBtn'),
-        limparSessaoBtn: document.getElementById('limparSessaoBtn')
+        limparSessaoBtn: document.getElementById('limparSessaoBtn'),
+        // dossiê
+        dossierPanel: document.getElementById('dossierPanel'),
+        dossierStatus: document.getElementById('dossierStatus'),
+        dossierTerminal: document.getElementById('dossierTerminal'),
+        indexCodeBlock: document.getElementById('indexCodeBlock'),
+        indexCodeValue: document.getElementById('indexCodeValue'),
+        indexCodeDesc: document.getElementById('indexCodeDesc'),
+        dossierActions: document.getElementById('dossierActions'),
+        btnIndexar: document.getElementById('btnIndexar'),
+        btnRejeitar: document.getElementById('btnRejeitar')
     };
 
-    let video = document.getElementById('videoElement');
-    let canvas = document.getElementById('overlay');
-    let ctx = canvas.getContext('2d');
+    const video = document.getElementById('videoElement');
+    const canvas = document.getElementById('overlay');
+    const ctx = canvas.getContext('2d');
     let faceDetector = null;
     let currentStream = null;
     let animationFrameId = null;
 
-    /* =========================== INICIALIZAÇÃO =========================== */
+    /* =========================== POOLS NARRATIVOS =========================== */
+    const NOMES = ["AXIOM", "NOVA", "ZEUS", "LYRA", "ORION", "VEGA", "THANE", "MIRA", "KAIROS", "ECHO", "NEXUS", "HELIX", "QUASAR", "VOID", "PRISM", "ONYX"];
+    const PERFIS = ["OBSERVADOR", "NÓ URBANO", "AGENTE ANÔNIMO", "PRESENÇA RECORRENTE", "ENTIDADE NÃO CLASSIFICADA", "SINAL HUMANO", "ARQUIVO TEMPORÁRIO", "VETOR SILENCIOSO", "FRAGMENTO ATIVO"];
+    const CLASSES = ["ALFA", "BETA", "GAMA", "DELTA", "ÉPSILON", "ZETA", "ÔMEGA"];
+    const ORIGENS = ["SETOR-04", "ZONA-L", "EIXO-7", "NÍVEL-B2", "PORTAL-X", "FRENTE-9", "SEGMENTO-M"];
+    const TAGS = ["estável", "volátil", "latente", "ativo", "residual", "emergente"];
+    const ANOMALIAS = ["— nenhuma —", "micro-oscilação", "padrão atípico", "sinal residual", "fragmento mnemônico"];
+
+    function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+    function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+    function randHex(len) { 
+        let s = ''; 
+        const chars = 'ABCDEF0123456789'; 
+        for (let i = 0; i < len; i++) s += chars[Math.floor(Math.random() * chars.length)]; 
+        return s; 
+    }
+    function gerarCodigoIndice() {
+        // Gera K1, K2, ..., I1, I2, etc. Sobe a letra a cada 9 registros.
+        state.indexCounter++;
+        const letras = 'KIHGFEDCBA';
+        const idx = Math.floor((state.indexCounter - 1) / 9);
+        const letra = letras[Math.min(idx, letras.length - 1)];
+        const num = ((state.indexCounter - 1) % 9) + 1;
+        return `${letra}${num}`;
+    }
+
+    /* =========================== INIT =========================== */
     function init() {
-        // Event listeners
         elementos.startButton.addEventListener('click', iniciarSistema);
         elementos.togglePauseBtn.addEventListener('click', alternarPausa);
         elementos.switchCameraBtn.addEventListener('click', alternarCamera);
@@ -361,7 +556,8 @@ const humano = (() => {
         elementos.closePanelBtn.addEventListener('click', fecharPainel);
         elementos.exportarBtn.addEventListener('click', exportarRelatorio);
         elementos.limparSessaoBtn.addEventListener('click', limparSessao);
-
+        elementos.btnIndexar.addEventListener('click', confirmarIndexacao);
+        elementos.btnRejeitar.addEventListener('click', rejeitarDossie);
         carregarHistorico();
     }
 
@@ -371,13 +567,11 @@ const humano = (() => {
         elementos.loadingText.textContent = 'Carregando modelo de detecção facial...';
 
         try {
-            // 1. Carregar o resolvedor WASM
             const vision = await FilesetResolver.forVisionTasks(
                 "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
             );
             elementos.loadingText.textContent = 'Modelo WASM carregado. Inicializando detector...';
 
-            // 2. Criar o detector facial
             faceDetector = await FaceDetector.createFromOptions(vision, {
                 baseOptions: {
                     modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
@@ -390,15 +584,9 @@ const humano = (() => {
             state.detectorReady = true;
             elementos.loadingText.textContent = 'Detector pronto. Solicitando câmera...';
 
-            // 3. Iniciar câmera
             await iniciarCamera();
-
-            // 4. Esconder splash
             elementos.splashScreen.style.display = 'none';
-
-            // 5. Iniciar loop de detecção
             iniciarLoopDeteccao();
-
         } catch (e) {
             console.error("Erro na inicialização:", e);
             elementos.loadingText.textContent = '❌ Erro: ' + e.message;
@@ -409,41 +597,25 @@ const humano = (() => {
     }
 
     async function iniciarCamera() {
-        // Parar stream anterior se existir
         if (currentStream) {
             currentStream.getTracks().forEach(t => t.stop());
             currentStream = null;
         }
-
         const constraints = {
-            video: {
-                facingMode: state.facingMode,
-                width: { ideal: 640 },
-                height: { ideal: 480 }
-            },
+            video: { facingMode: state.facingMode, width: { ideal: 640 }, height: { ideal: 480 } },
             audio: false
         };
-
         try {
             currentStream = await navigator.mediaDevices.getUserMedia(constraints);
             video.srcObject = currentStream;
-            
-            // Aguardar o vídeo estar pronto
             await new Promise((resolve) => {
-                if (video.readyState >= 2) {
-                    resolve();
-                } else {
-                    video.onloadedmetadata = () => resolve();
-                }
+                if (video.readyState >= 2) resolve();
+                else video.onloadedmetadata = () => resolve();
             });
-            
             await video.play();
             state.cameraAtiva = true;
             state.videoReady = true;
-            
-            // Ajustar canvas ao tamanho do vídeo
             ajustarCanvas();
-            
             atualizarStatus("DETECTANDO...", 'detalhes');
         } catch (err) {
             console.error("Erro ao acessar câmera:", err);
@@ -452,158 +624,290 @@ const humano = (() => {
     }
 
     function ajustarCanvas() {
-        const w = video.videoWidth || 640;
-        const h = video.videoHeight || 480;
-        canvas.width = w;
-        canvas.height = h;
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
     }
 
     function iniciarLoopDeteccao() {
         if (state.loopRunning) return;
         state.loopRunning = true;
-
         const loop = () => {
-            if (!state.cameraAtiva || !state.videoReady) {
-                animationFrameId = requestAnimationFrame(loop);
-                return;
-            }
-
-            if (state.pausado) {
-                animationFrameId = requestAnimationFrame(loop);
-                return;
-            }
-
-            try {
+            if (state.cameraAtiva && state.videoReady && !state.pausado && !state.dossierActive) {
                 const now = performance.now();
-                // Detectar apenas se passou tempo suficiente (limita FPS)
                 if (now - state.lastFrameTime > 80) {
                     state.lastFrameTime = now;
-                    
                     if (video.readyState >= 2 && faceDetector) {
-                        const results = faceDetector.detectForVideo(video, now);
-                        processarDeteccoes(results);
+                        try {
+                            const results = faceDetector.detectForVideo(video, now);
+                            processarDeteccoes(results);
+                        } catch (e) { /* silencioso */ }
                     }
                 }
-            } catch (e) {
-                console.warn("Erro na detecção:", e);
             }
-
             animationFrameId = requestAnimationFrame(loop);
         };
-
         animationFrameId = requestAnimationFrame(loop);
     }
 
-    /* =========================== PROCESSAMENTO DE DETECÇÕES =========================== */
+    /* =========================== DETECÇÃO =========================== */
     function processarDeteccoes(results) {
         const now = Date.now();
         const detections = results.detections || [];
 
-        // Atualizar métricas
         state.detectionCount += detections.length;
         atualizarMetricas();
 
-        // Limpar trilhas expiradas
         state.trackedFaces = state.trackedFaces.filter(f => (now - f.lastSeen) < state.trackExpiry);
 
-        // Processar cada rosto
         detections.forEach(detection => {
             const bbox = detection.boundingBox;
             const cx = bbox.originX + bbox.width / 2;
             const cy = bbox.originY + bbox.height / 2;
 
-            // Buscar trilha correspondente
-            let tracked = state.trackedFaces.find(tf => 
+            let tracked = state.trackedFaces.find(tf =>
                 Math.hypot(tf.cx - cx, tf.cy - cy) < state.mergeProximity
             );
 
             if (!tracked) {
-                const newId = state.trackedFaces.length > 0 
-                    ? Math.max(...state.trackedFaces.map(t => t.id)) + 1 
+                const newId = state.trackedFaces.length > 0
+                    ? Math.max(...state.trackedFaces.map(t => t.id)) + 1
                     : 1;
                 tracked = {
-                    id: newId,
-                    cx, cy,
-                    createdAt: now,
-                    lastSeen: now,
-                    stabilized: false,
-                    recordGenerated: false
+                    id: newId, cx, cy,
+                    createdAt: now, lastSeen: now,
+                    stabilized: false, recordGenerated: false
                 };
                 state.trackedFaces.push(tracked);
             } else {
-                tracked.cx = cx;
-                tracked.cy = cy;
-                tracked.lastSeen = now;
+                tracked.cx = cx; tracked.cy = cy; tracked.lastSeen = now;
             }
 
-            // Verificar estabilização
+            // Estabilização -> dispara dossiê
             if (!tracked.stabilized && (now - tracked.createdAt) > state.stabilizationDelay) {
                 tracked.stabilized = true;
-                if (!tracked.recordGenerated) {
+                if (!tracked.recordGenerated && !state.dossierActive) {
                     tracked.recordGenerated = true;
-                    gerarFicha(tracked);
+                    iniciarDossie(tracked);
                 }
             }
         });
 
-        // Atualizar status geral
+        // Status
         if (detections.length === 0) {
             atualizarStatus("SEM ROSTO DETECTADO", 'detalhes');
+        } else if (state.dossierActive) {
+            atualizarStatus("DOSSIÊ ABERTO", 'alerta');
         } else if (detections.length > 1) {
             atualizarStatus(`ANALISANDO ${detections.length} ROSTOS...`, 'alerta');
         } else {
             const activeTrack = state.trackedFaces.find(tf => (now - tf.lastSeen) < state.trackExpiry);
             if (activeTrack?.recordGenerated) {
-                atualizarStatus("REGISTRO GERADO", 'detalhes');
+                atualizarStatus("AGUARDANDO CONFIRMAÇÃO", 'alerta');
             } else {
                 atualizarStatus("ANALISANDO...", 'alerta');
             }
         }
 
-        // Desenhar
-        desenharElementos(detections, results);
+        desenharElementos(detections);
     }
 
-    /* =========================== GERAÇÃO DE FICHA =========================== */
-    const nomesSinteticos = ["AXIOM", "NOVA", "ZEUS", "LYRA", "ORION", "VEGA", "THANE", "MIRA", "KAIROS", "ECHO"];
-    const perfisNarrativos = ["OBSERVADOR", "NÓ URBANO", "AGENTE ANÔNIMO", "PRESENÇA RECORRENTE", "ENTIDADE NÃO CLASSIFICADA", "SINAL HUMANO", "ARQUIVO TEMPORÁRIO", "VETOR SILENCIOSO"];
+    /* =========================== DOSSIÊ - MÁQUINA DE ESTADOS =========================== */
+    function iniciarDossie(faceTrack) {
+        state.dossierActive = true;
+        state.dossierStep = 0;
+        state.dossierFaceId = faceTrack.id;
+        state.dossierData = gerarDadosDossie();
+        state.typewriterTimers.forEach(t => clearTimeout(t));
+        state.typewriterTimers = [];
 
-    function gerarFicha(faceTrack) {
-        const id = state.recordCount + 1;
-        state.recordCount = id;
+        // Reset UI
+        elementos.dossierTerminal.innerHTML = '';
+        elementos.dossierPanel.classList.add('visible');
+        elementos.dossierStatus.textContent = 'SCAN';
+        elementos.dossierActions.classList.remove('visible');
+        elementos.indexCodeBlock.classList.remove('visible');
+        elementos.btnIndexar.disabled = true;
+        elementos.btnRejeitar.disabled = true;
+        elementos.indexCodeValue.textContent = '— — —';
+        elementos.indexCodeDesc.textContent = 'aguardando análise';
 
-        const nomeBase = nomesSinteticos[Math.floor(Math.random() * nomesSinteticos.length)];
-        const nome = `${nomeBase}-${String(id).padStart(4, '0')}`;
-        const idade = Math.floor(Math.random() * (60 - 18 + 1)) + 18;
-        const email = `${nome.toLowerCase().replace(/[^a-z0-9]/g, '.')}@example.invalid`;
-        const documento = `ID-DOC-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
-        const perfil = perfisNarrativos[Math.floor(Math.random() * perfisNarrativos.length)];
-        const score = (Math.random() * (99.9 - 85.0) + 85.0).toFixed(1);
+        // Sequência de linhas que serão digitadas
+        const d = state.dossierData;
+        const linhas = [
+            { t: '> INICIANDO DOSSIÊ PARA FACE-' + faceTrack.id, cls: 'ok', delay: 0 },
+            { t: '  varredura biométrica................ OK', cls: 'ok', delay: 400 },
+            { t: '  extraindo vetores faciais.......... OK', cls: 'ok', delay: 800 },
+            { t: '  consultando base sintética........ OK', cls: 'ok', delay: 1200 },
+            { t: '', cls: '', delay: 1500 },
+            { t: '  ┌─ DADOS DECIFRADOS ──────────────', cls: 'cipher', delay: 1700 },
+            { t: '  │ nome............ ' + d.nome, cls: '', delay: 2000 },
+            { t: '  │ idade........... ' + d.idade + ' anos', cls: '', delay: 2300 },
+            { t: '  │ perfil.......... ' + d.perfil, cls: '', delay: 2600 },
+            { t: '  │ classe.......... ' + d.classe, cls: '', delay: 2900 },
+            { t: '  │ origem.......... ' + d.origem, cls: '', delay: 3200 },
+            { t: '  │ tag............. ' + d.tag, cls: '', delay: 3500 },
+            { t: '  │ score........... ' + d.score + '%', cls: '', delay: 3800 },
+            { t: '  │ anomalia........ ' + d.anomalia, cls: '', delay: 4100 },
+            { t: '  │ e-mail.......... ' + d.email, cls: '', delay: 4400 },
+            { t: '  │ documento....... ' + d.documento, cls: 'warn', delay: 4700 },
+            { t: '  │ hash............ ' + d.hash, cls: 'cipher', delay: 5000 },
+            { t: '  └─────────────────────────────────', cls: 'cipher', delay: 5300 },
+            { t: '', cls: '', delay: 5500 },
+            { t: '  STATUS: PRONTO PARA INDEXAÇÃO', cls: 'ok', delay: 5800 }
+        ];
+
+        // Digita cada linha
+        linhas.forEach((linha, i) => {
+            const timer = setTimeout(() => {
+                if (!state.dossierActive) return;
+                digitarLinha(linha.t, linha.cls, () => {
+                    if (i === linhas.length - 1) {
+                        // Finalizou -> mostra código e ações
+                        finalizarDossie();
+                    }
+                });
+            }, linha.delay);
+            state.typewriterTimers.push(timer);
+        });
+    }
+
+    function digitarLinha(texto, classe, onDone) {
+        const lineEl = document.createElement('span');
+        lineEl.className = 'line';
+        if (classe) lineEl.classList.add(classe);
+        elementos.dossierTerminal.appendChild(lineEl);
+
+        let i = 0;
+        const cursor = document.createElement('span');
+        cursor.className = 'cursor';
+        lineEl.appendChild(cursor);
+
+        const tick = () => {
+            if (!state.dossierActive) return;
+            if (i < texto.length) {
+                cursor.before(document.createTextNode(texto[i]));
+                i++;
+                setTimeout(tick, 12 + Math.random() * 20);
+            } else {
+                cursor.remove();
+                if (onDone) onDone();
+            }
+        };
+        tick();
+        elementos.dossierTerminal.scrollTop = elementos.dossierTerminal.scrollHeight;
+    }
+
+    function finalizarDossie() {
+        // Gera código de índice
+        const codigo = gerarCodigoIndice();
+        state.dossierData.codigo = codigo;
+
+        elementos.dossierStatus.textContent = 'PRONTO';
+        elementos.indexCodeValue.textContent = codigo;
+        elementos.indexCodeDesc.textContent = 'aguardando confirmação do operador';
+        elementos.indexCodeBlock.classList.add('visible');
+
+        // Habilita botões
+        elementos.btnIndexar.disabled = false;
+        elementos.btnRejeitar.disabled = false;
+        elementos.dossierActions.classList.add('visible');
+        atualizarStatus("AGUARDANDO CONFIRMAÇÃO", 'alerta');
+    }
+
+    function confirmarIndexacao() {
+        if (!state.dossierData) return;
+        const d = state.dossierData;
         const now = new Date();
-        const sessionCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-        const registroId = `HUM-${String(state.recordCount).padStart(6, '0')}`;
+        const registroId = `HUM-${String(state.sessionRecords.length + 1).padStart(6, '0')}`;
 
         const ficha = {
             id: registroId,
+            codigo: d.codigo,
+            nome: d.nome,
+            idade: d.idade,
+            email: d.email,
+            documento: d.documento,
+            perfil: d.perfil,
+            classe: d.classe,
+            origem: d.origem,
+            tag: d.tag,
+            score: d.score,
+            anomalia: d.anomalia,
+            hash: d.hash,
+            dataHora: now.toLocaleString('pt-BR'),
+            status: "INDEXADO"
+        };
+
+        state.sessionRecords.push(ficha);
+        state.recordCount = state.sessionRecords.length;
+        salvarHistorico();
+        renderizarHistorico();
+        atualizarMetricas();
+
+        // Feedback visual: transforma o painel em "CONFIRMADO"
+        elementos.dossierStatus.textContent = 'INDEXADO';
+        elementos.indexCodeDesc.textContent = '✓ registro consolidado na sessão';
+        elementos.btnIndexar.disabled = true;
+        elementos.btnRejeitar.disabled = true;
+
+        const okLine = document.createElement('span');
+        okLine.className = 'line ok';
+        okLine.textContent = '> ✓ DOSSIÊ ' + d.codigo + ' INDEXADO EM ' + now.toLocaleTimeString('pt-BR');
+        elementos.dossierTerminal.appendChild(okLine);
+        elementos.dossierTerminal.scrollTop = elementos.dossierTerminal.scrollHeight;
+
+        atualizarStatus("REGISTRO INDEXADO: " + d.codigo, 'detalhes');
+
+        // Fecha após 2.5s
+        setTimeout(() => {
+            fecharDossie();
+        }, 2500);
+    }
+
+    function rejeitarDossie() {
+        if (!state.dossierData) return;
+        const codigo = state.dossierData.codigo;
+        const line = document.createElement('span');
+        line.className = 'line warn';
+        line.textContent = '> ✕ DOSSIÊ ' + codigo + ' REJEITADO';
+        elementos.dossierTerminal.appendChild(line);
+        elementos.btnIndexar.disabled = true;
+        elementos.btnRejeitar.disabled = true;
+        elementos.indexCodeDesc.textContent = '✕ descartado';
+        atualizarStatus("DOSSIÊ REJEITADO", 'perigo');
+        setTimeout(() => fecharDossie(), 1500);
+    }
+
+    function fecharDossie() {
+        state.dossierActive = false;
+        elementos.dossierPanel.classList.remove('visible');
+        // reseta trilhas para permitir nova detecção
+        state.trackedFaces = [];
+    }
+
+    /* =========================== GERAÇÃO DE DADOS =========================== */
+    function gerarDadosDossie() {
+        const nomeBase = rand(NOMES);
+        const num = randInt(100, 999);
+        const nome = `${nomeBase}-${num}`;
+        const idade = randInt(18, 72);
+        const email = `${nome.toLowerCase().replace(/[^a-z0-9]/g, '.')}@void.invalid`;
+        const documento = `ID-DOC-${randHex(8)}`;
+        const hash = randHex(12) + '-' + randHex(12);
+        const score = (Math.random() * (99.9 - 82.0) + 82.0).toFixed(1);
+        return {
             nome,
             idade,
             email,
             documento,
-            perfil,
-            score,
-            dataHora: now.toLocaleString('pt-BR'),
-            sessionCode,
-            tempTrackId: faceTrack.id,
-            status: "PROCESSAMENTO CONCLUÍDO"
+            hash,
+            perfil: rand(PERFIS),
+            classe: rand(CLASSES),
+            origem: rand(ORIGENS),
+            tag: rand(TAGS),
+            anomalia: rand(ANOMALIAS),
+            score
         };
-
-        state.sessionRecords.push(ficha);
-        salvarHistorico();
-        exibirFicha(ficha);
-        atualizarMetricas();
-        renderizarHistorico();
-
-        console.log("[HUMANO.EXE] FICHA GERADA:", ficha);
     }
 
     /* =========================== INTERFACE =========================== */
@@ -611,7 +915,6 @@ const humano = (() => {
         elementos.statusText.textContent = texto;
         elementos.statusText.className = 'status-text';
         if (classe !== 'detalhes') elementos.statusText.classList.add(classe);
-        
         elementos.indicatorDot.className = 'indicator-dot';
         elementos.indicatorDot.classList.add(`indicator-${classe}`);
     }
@@ -621,37 +924,9 @@ const humano = (() => {
         elementos.registrosCount.textContent = state.recordCount;
     }
 
-    function exibirFicha(ficha) {
-        elementos.fichaContent.innerHTML = `
-            <div style="border-bottom:1px solid var(--border-color); padding-bottom:8px; margin-bottom:8px;">
-              <strong style="color:var(--accent-color);">${ficha.id}</strong>
-            </div>
-            <div style="display:grid; grid-template-columns:80px auto; gap:4px 8px; font-size:0.75rem;">
-              <span style="color:#888;">Nome:</span>
-              <span style="color:var(--amber);">${ficha.nome}</span>
-              <span style="color:#888;">Idade:</span>
-              <span style="color:var(--amber);">${ficha.idade} anos</span>
-              <span style="color:#888;">E-mail:</span>
-              <span style="word-break:break-all; font-size:0.7rem;">${ficha.email}</span>
-              <span style="color:#888;">Documento:</span>
-              <span style="color:var(--red);">${ficha.documento}</span>
-              <span style="color:#888;">Perfil:</span>
-              <span style="color:var(--accent-color);">${ficha.perfil}</span>
-              <span style="color:#888;">Score:</span>
-              <span style="color:var(--amber);">${ficha.score}%</span>
-              <span style="color:#888;">Data/Hora:</span>
-              <span style="font-size:0.7rem;">${ficha.dataHora}</span>
-              <span style="color:#888;">Sessão:</span>
-              <span style="font-size:0.7rem;">${ficha.sessionCode}</span>
-            </div>
-            <small style="display:block; margin-top:8px; color:var(--red); font-size:0.65rem;">⚠️ REGISTRO SINTÉTICO. IDENTIDADE CIVIL NÃO VERIFICADA.</small>
-        `;
-    }
-
-    /* =========================== RENDERIZAÇÃO DO CANVAS =========================== */
+    /* =========================== CANVAS =========================== */
     function desenharElementos(detections) {
-        const w = canvas.width;
-        const h = canvas.height;
+        const w = canvas.width, h = canvas.height;
         ctx.clearRect(0, 0, w, h);
 
         detections.forEach((detection, index) => {
@@ -663,19 +938,17 @@ const humano = (() => {
             const cx = startX + boxWidth / 2;
             const cy = startY + boxHeight / 2;
 
-            const tracked = state.trackedFaces.find(tf => 
+            const tracked = state.trackedFaces.find(tf =>
                 Math.hypot(tf.cx - cx, tf.cy - cy) < state.mergeProximity
             );
             const color = tracked?.recordGenerated ? '#ff3355' : (tracked?.stabilized ? '#ffaa00' : '#00ffcc');
 
-            // Moldura
             ctx.strokeStyle = color;
             ctx.lineWidth = 2.5;
             ctx.setLineDash([6, 4]);
             ctx.strokeRect(startX, startY, boxWidth, boxHeight);
             ctx.setLineDash([]);
 
-            // Cantos decorativos
             const offset = 12;
             ctx.lineWidth = 3;
             ctx.strokeStyle = color;
@@ -686,15 +959,13 @@ const humano = (() => {
             ctx.moveTo(startX + boxWidth, startY + boxHeight - offset); ctx.lineTo(startX + boxWidth, startY + boxHeight); ctx.lineTo(startX + boxWidth - offset, startY + boxHeight);
             ctx.stroke();
 
-            // Label
             ctx.fillStyle = 'rgba(0,0,0,0.7)';
-            ctx.fillRect(startX, startY - 22, 100, 20);
+            ctx.fillRect(startX, startY - 22, 110, 20);
             ctx.fillStyle = color;
             ctx.font = "bold 12px monospace";
             ctx.textAlign = "left";
             ctx.fillText(`FACE-${index + 1}`, startX + 5, startY - 8);
 
-            // Ponto de status
             if (tracked?.recordGenerated) {
                 ctx.fillStyle = '#ff3355';
                 ctx.beginPath();
@@ -702,10 +973,6 @@ const humano = (() => {
                 ctx.fill();
             }
         });
-    }
-
-    function limparOverlay() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
 
     /* =========================== CONTROLES =========================== */
@@ -720,7 +987,8 @@ const humano = (() => {
         state.pausado = false;
         elementos.togglePauseBtn.textContent = "Pausar";
         atualizarStatus("CÂMERA ENCERRADA", 'perigo');
-        limparOverlay();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        fecharDossie();
     }
 
     function alternarPausa() {
@@ -735,30 +1003,17 @@ const humano = (() => {
         if (!state.cameraAtiva) return;
         state.facingMode = state.facingMode === 'environment' ? 'user' : 'environment';
         atualizarStatus("TROCANDO CÂMERA...", 'alerta');
-        try {
-            await iniciarCamera();
-        } catch (e) {
-            atualizarStatus("ERRO AO TROCAR CÂMERA", 'perigo');
-        }
+        try { await iniciarCamera(); }
+        catch (e) { atualizarStatus("ERRO AO TROCAR CÂMERA", 'perigo'); }
     }
 
-    /* =========================== PAINEL LATERAL =========================== */
-    function abrirPainel() {
-        elementos.sidePanel.classList.add('open');
-        renderizarHistorico();
-    }
-
-    function fecharPainel() {
-        elementos.sidePanel.classList.remove('open');
-    }
+    function abrirPainel() { elementos.sidePanel.classList.add('open'); renderizarHistorico(); }
+    function fecharPainel() { elementos.sidePanel.classList.remove('open'); }
 
     /* =========================== PERSISTÊNCIA =========================== */
     function salvarHistorico() {
-        try {
-            localStorage.setItem('humanoSessionRecords', JSON.stringify(state.sessionRecords));
-        } catch (e) {
-            console.warn("Não foi possível salvar histórico:", e);
-        }
+        try { localStorage.setItem('humanoSessionRecords', JSON.stringify(state.sessionRecords)); }
+        catch (e) { console.warn(e); }
     }
 
     function carregarHistorico() {
@@ -767,31 +1022,45 @@ const humano = (() => {
             if (saved) {
                 state.sessionRecords = JSON.parse(saved);
                 state.recordCount = state.sessionRecords.length;
+                // Reconstrói o contador de índices
+                if (state.sessionRecords.length > 0) {
+                    const ultimo = state.sessionRecords[state.sessionRecords.length - 1];
+                    if (ultimo.codigo) {
+                        const m = ultimo.codigo.match(/^([A-Z])(\d+)$/);
+                        if (m) {
+                            const letras = 'KIHGFEDCBA';
+                            const letraIdx = letras.indexOf(m[1]);
+                            if (letraIdx >= 0) {
+                                state.indexCounter = letraIdx * 9 + parseInt(m[2], 10);
+                            }
+                        }
+                    }
+                }
             }
-        } catch (e) {
-            console.warn("Falha ao carregar histórico.");
-        }
+        } catch (e) { console.warn(e); }
         atualizarMetricas();
         renderizarHistorico();
     }
 
     function renderizarHistorico() {
-        if (!elementos.historicoLista) return;
         elementos.historicoLista.innerHTML = '';
         if (state.sessionRecords.length === 0) {
-            elementos.historicoLista.innerHTML = '<li style="text-align:center; color:#666; justify-content:center;">Nenhum registro.</li>';
+            elementos.historicoLista.innerHTML = '<li style="text-align:center; color:#666; justify-content:center;">Nenhum índice.</li>';
             return;
         }
         state.sessionRecords.slice().reverse().forEach(record => {
             const li = document.createElement('li');
-            const span = document.createElement('span');
-            span.className = 'nome';
-            span.textContent = `${record.id} · ${record.nome}`;
+            const cod = document.createElement('span');
+            cod.className = 'codigo';
+            cod.textContent = record.codigo || '—';
+            const nome = document.createElement('span');
+            nome.className = 'nome';
+            nome.textContent = record.nome;
             const btn = document.createElement('button');
             btn.className = 'del-btn';
             btn.textContent = '×';
             btn.onclick = () => removerRegistro(record.id);
-            li.append(span, btn);
+            li.append(cod, nome, btn);
             elementos.historicoLista.appendChild(li);
         });
     }
@@ -809,52 +1078,34 @@ const humano = (() => {
         state.sessionRecords = [];
         state.detectionCount = 0;
         state.recordCount = 0;
+        state.indexCounter = 0;
         state.trackedFaces = [];
         localStorage.removeItem('humanoSessionRecords');
-        elementos.fichaContent.textContent = "Sessão limpa.";
         atualizarMetricas();
         renderizarHistorico();
     }
 
     function exportarRelatorio() {
-        if (state.sessionRecords.length === 0) {
-            alert("Nenhum registro para exportar.");
-            return;
-        }
+        if (state.sessionRecords.length === 0) { alert("Nenhum registro."); return; }
         const conteudo = {
-            titulo: "HUMANO.EXE - RELATÓRIO DE SIMULAÇÃO",
-            descricao: "Este relatório contém dados sintéticos e fictícios. Não representam identificação biométrica ou civil real.",
+            titulo: "HUMANO.EXE - RELATÓRIO DE INDEXAÇÃO",
+            descricao: "Dados sintéticos e fictícios. Não representam identificação biométrica real.",
             timestamp: new Date().toISOString(),
-            metricas: {
-                deteccoesFaciais: state.detectionCount,
-                registrosUnicos: state.recordCount
-            },
+            metricas: { deteccoesFaciais: state.detectionCount, registrosIndexados: state.recordCount },
             registros: state.sessionRecords
         };
         const blob = new Blob([JSON.stringify(conteudo, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `humano_exe_simulacao_${new Date().toISOString().slice(0,10)}.json`;
+        a.download = `humano_exe_${new Date().toISOString().slice(0,10)}.json`;
         a.click();
         URL.revokeObjectURL(url);
     }
 
-    return {
-        init,
-        iniciarSistema,
-        alternarPausa,
-        alternarCamera,
-        encerrarCamera,
-        abrirPainel,
-        fecharPainel,
-        removerRegistro,
-        limparSessao,
-        exportarRelatorio
-    };
+    return { init };
 })();
 
-// Iniciar
 window.addEventListener('load', () => humano.init());
 </script>
 </body>
