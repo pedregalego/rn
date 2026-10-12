@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>HUMANO.EXE</title>
+    <title>HUMANO.EXE — Interface AR</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
@@ -11,11 +11,11 @@
             --terminal-green: #00ff88;
             --amber: #ffaa00;
             --red: #ff3355;
-            --border-color: #222;
-            --accent-color: #00ffcc;
             --purple: #a78bfa;
+            --scan-color: #00ffcc;
             --font-mono: 'Courier New', 'Consolas', monospace;
-            --transition-fast: 0.2s ease;
+            --glass-bg: rgba(10, 15, 22, 0.72);
+            --glass-border: rgba(0, 255, 136, 0.25);
             --transition-slow: 0.8s cubic-bezier(0.77, 0, 0.07, 1);
         }
 
@@ -25,248 +25,273 @@
             color: var(--terminal-green);
             overflow: hidden;
             height: 100vh;
-            position: relative;
+            width: 100vw;
         }
+
+        /* ---------- Camadas base ---------- */
+        #videoElement, #hudCanvas, #dossierLayer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+        }
+        #videoElement { object-fit: cover; z-index: 1; }
+        #hudCanvas { z-index: 3; }
 
         /* Scanner overlay */
         .scanner-overlay {
             position: absolute; inset: 0;
-            pointer-events: none; overflow: hidden; z-index: 5;
+            pointer-events: none; z-index: 5;
         }
         .scanline {
-            position: absolute; width: 100%; height: 2px;
-            background: linear-gradient(90deg, transparent, var(--terminal-green), transparent);
-            animation: scan 6s linear infinite;
-            opacity: 0.5;
+            position: absolute; width: 100%; height: 3px;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 136, 0.5), transparent);
+            animation: scan 5s linear infinite;
         }
-        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
+        @keyframes scan { 0% { top: 0; opacity: 0; } 10% { opacity: 0.4; } 90% { opacity: 0.4; } 100% { top: 100%; opacity: 0; } }
         .noise {
-            position: absolute; width: 100%; height: 100%;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.8' type='fractalNoise'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-            opacity: 0.05; pointer-events: none;
+            position: absolute; inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9' type='fractalNoise'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+            opacity: 0.04;
+        }
+        .vignette {
+            position: absolute; inset: 0;
+            background: radial-gradient(transparent 50%, rgba(0,0,0,0.5) 100%);
         }
 
-        #videoElement, #overlay {
-            position: absolute; top: 0; left: 0;
-            width: 100%; height: 100%; object-fit: cover;
-        }
-        #overlay { pointer-events: none; z-index: 4; }
-        #videoElement { z-index: 1; }
+        /* ---------- Dossiers (HUD cards) ---------- */
+        #dossierLayer { z-index: 4; display: flex; flex-wrap: wrap; }
 
-        /* ============================================================ *
-         * DOSSIÊ PANEL - Aparece ao detectar rosto                    *
-         * ============================================================ */
-        .dossier-panel {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) scale(0.9);
-            width: min(420px, 92vw);
-            max-height: 82vh;
-            background: linear-gradient(145deg, rgba(10,15,20,0.97), rgba(5,8,12,0.99));
-            border: 1px solid var(--terminal-green);
-            border-radius: 8px;
-            padding: 16px;
-            z-index: 100;
-            opacity: 0;
-            visibility: hidden;
-            pointer-events: none;
-            transition: opacity 0.4s ease, transform 0.5s cubic-bezier(0.34,1.56,0.64,1), visibility 0.4s;
+        .hud-card {
+            position: absolute;
+            min-width: 200px; max-width: 260px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px) saturate(140%);
+            -webkit-backdrop-filter: blur(12px) saturate(140%);
+            border: 1px solid var(--glass-border);
+            border-left: 3px solid var(--terminal-green);
+            border-radius: 6px;
+            padding: 0;
+            color: var(--terminal-green);
+            font-size: 0.72rem;
+            line-height: 1.55;
             box-shadow: 
-                0 0 40px rgba(0, 255, 136, 0.25),
-                0 0 80px rgba(0, 255, 136, 0.1),
-                inset 0 0 30px rgba(0, 255, 136, 0.03);
-            overflow-y: auto;
-        }
-        .dossier-panel.visible {
-            opacity: 1;
-            visibility: visible;
+                0 8px 32px rgba(0, 0, 0, 0.45),
+                0 0 0 1px rgba(0, 255, 136, 0.06),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            opacity: 0;
+            transform: translateY(12px) scale(0.96);
+            transition: opacity 0.5s ease, transform 0.5s var(--transition-slow);
             pointer-events: auto;
-            transform: translate(-50%, -50%) scale(1);
-        }
-        .dossier-panel::before {
-            content: '';
-            position: absolute; inset: -1px;
-            border-radius: 8px;
-            padding: 1px;
-            background: linear-gradient(135deg, var(--terminal-green), transparent 40%, transparent 60%, var(--accent-color));
-            -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-            -webkit-mask-composite: xor;
-            mask-composite: exclude;
-            pointer-events: none;
-            animation: borderGlow 3s ease-in-out infinite;
-        }
-        @keyframes borderGlow {
-            0%, 100% { opacity: 0.5; }
-            50% { opacity: 1; }
         }
 
-        .dossier-header {
+        .hud-card.active {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+        .hud-card.lost {
+            opacity: 0;
+            transform: translateY(-24px) scale(0.9);
+        }
+
+        /* Cantos marcados */
+        .hud-card::before, .hud-card::after,
+        .hud-card-corner, .hud-card-edge {
+            content: ''; position: absolute; pointer-events: none;
+        }
+        .hud-card::before {
+            top: -2px; left: -2px; width: 14px; height: 14px;
+            border-top: 2px solid var(--terminal-green);
+            border-left: 2px solid var(--terminal-green);
+            border-radius: 4px 0 0 0;
+        }
+        .hud-card::after {
+            bottom: -2px; right: -2px; width: 14px; height: 14px;
+            border-bottom: 2px solid var(--terminal-green);
+            border-right: 2px solid var(--terminal-green);
+            border-radius: 0 0 4px 0;
+        }
+        .hud-card.active::after, .hud-card.lost::after {
+            border-color: var(--red);
+        }
+
+        .hud-card-corner {
+            top: -6px; width: 12px; height: 2px;
+            background: linear-gradient(90deg, var(--scan-color), transparent);
+        }
+        .corner-tl { left: 0; }
+        .corner-tr { right: 0; }
+
+        .hud-card-edge {
+            position: absolute; top: -1px;
+            height: 1px; width: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 204, 0.4), transparent);
+        }
+
+        /* Cabeçalho do card */
+        .card-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 10px;
-            margin-bottom: 12px;
+            align-items: flex-start;
+            padding: 8px 10px 6px;
+            border-bottom: 1px solid rgba(0, 255, 136, 0.18);
         }
-        .dossier-header .title {
-            font-size: 0.8rem;
-            color: var(--amber);
+        .card-id {
+            font-size: 0.78rem;
             letter-spacing: 2px;
-            text-shadow: 0 0 10px var(--amber);
+            color: var(--scan-color);
+            text-shadow: 0 0 8px rgba(0, 255, 204, 0.5);
         }
-        .dossier-header .status-badge {
-            font-size: 0.6rem;
-            padding: 3px 8px;
-            border: 1px solid var(--accent-color);
-            border-radius: 10px;
-            color: var(--accent-color);
-            letter-spacing: 1px;
-            animation: pulse 1.5s infinite;
-        }
-
-        /* Terminal de digitação */
-        .dossier-terminal {
-            font-size: 0.72rem;
-            line-height: 1.7;
+        .card-status {
+            font-size: 0.62rem;
+            padding: 2px 6px;
+            border: 1px solid var(--glass-border);
+            border-radius: 99px;
             color: var(--terminal-green);
-            margin-bottom: 12px;
-            min-height: 200px;
-            white-space: pre-wrap;
-            word-break: break-word;
-            text-shadow: 0 0 5px rgba(0, 255, 136, 0.3);
-        }
-        .dossier-terminal .line {
-            display: block;
-            opacity: 0;
-            animation: lineIn 0.3s ease forwards;
-        }
-        @keyframes lineIn {
-            from { opacity: 0; transform: translateX(-8px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-        .dossier-terminal .label { color: #666; }
-        .dossier-terminal .value { color: var(--amber); }
-        .dossier-terminal .cipher { 
-            color: var(--purple); 
-            font-style: italic; 
-            letter-spacing: 1px;
-        }
-        .dossier-terminal .warn { color: var(--red); }
-        .dossier-terminal .ok { color: var(--terminal-green); }
-        .dossier-terminal .cursor {
-            display: inline-block;
-            width: 7px;
-            height: 0.9em;
-            background: var(--terminal-green);
-            vertical-align: middle;
-            animation: blink 0.7s step-end infinite;
-            margin-left: 2px;
-        }
-        @keyframes blink { 50% { opacity: 0; } }
-
-        /* Bloco de código índice */
-        .index-code-block {
             text-align: center;
-            padding: 12px;
-            border: 1px dashed var(--terminal-green);
-            border-radius: 6px;
-            margin: 12px 0;
-            background: rgba(0, 255, 136, 0.05);
-            opacity: 0;
-            transform: scale(0.8);
-            transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.34,1.56,0.64,1);
-        }
-        .index-code-block.visible {
-            opacity: 1;
-            transform: scale(1);
-        }
-        .index-code-block .code-label {
-            font-size: 0.55rem;
-            color: #888;
-            letter-spacing: 3px;
-            text-transform: uppercase;
-            margin-bottom: 6px;
-        }
-        .index-code-block .code-value {
-            font-size: 2.2rem;
-            color: var(--terminal-green);
-            font-weight: bold;
-            letter-spacing: 4px;
-            text-shadow: 
-                0 0 15px var(--terminal-green),
-                0 0 30px var(--terminal-green);
-            animation: codeGlow 1.5s ease-in-out infinite alternate;
-        }
-        @keyframes codeGlow {
-            from { text-shadow: 0 0 10px var(--terminal-green), 0 0 20px var(--terminal-green); }
-            to { text-shadow: 0 0 20px var(--terminal-green), 0 0 40px var(--terminal-green), 0 0 60px rgba(0,255,136,0.5); }
-        }
-        .index-code-block .code-desc {
-            font-size: 0.6rem;
-            color: var(--accent-color);
-            margin-top: 6px;
             letter-spacing: 1px;
+            white-space: nowrap;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        .card-status.indexado { color: var(--terminal-green); border-color: rgba(0, 255, 136, 0.4); }
+        .card-status.pending { color: var(--amber); border-color: rgba(255, 170, 0, 0.4); animation: pulse 1.2s ease-in-out infinite; }
+        .card-status.lost-card { color: var(--red); border-color: rgba(255, 51, 85, 0.4); animation: none; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+        /* Corpo do card */
+        .card-body {
+            padding: 7px 10px 9px;
+            font-size: 0.7rem;
+            text-shadow: 0 0 3px rgba(0, 255, 136, 0.25);
+        }
+        .card-row {
+            display: flex; justify-content: space-between;
+            margin: 3px 0;
+        }
+        .card-row .label { color: #7aa392; letter-spacing: 0.5px; }
+        .card-row .value { color: var(--amber); text-align: right; letter-spacing: 0.5px; }
+        .card-row .value.cipher { color: var(--purple); }
+        .card-row .value.score { color: var(--terminal-green); font-weight: bold; }
+
+        .card-identity {
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px dashed rgba(0, 255, 136, 0.22);
+            font-size: 0.66rem;
+            color: var(--scan-color);
+            letter-spacing: 2px;
+            text-align: center;
+            text-shadow: 0 0 6px rgba(0, 255, 204, 0.4);
         }
 
-        /* Ações */
-        .dossier-actions {
-            display: flex;
-            gap: 8px;
-            margin-top: 14px;
-            opacity: 0;
-            transform: translateY(10px);
-            transition: opacity 0.4s ease, transform 0.4s ease;
+        /* Barra de progresso de estabilização */
+        .stabilization-bar {
+            position: absolute; bottom: 0; left: 0;
+            height: 2px; width: 0%;
+            background: linear-gradient(90deg, var(--scan-color), var(--terminal-green));
+            transition: width 0.15s linear;
         }
-        .dossier-actions.visible {
-            opacity: 1;
-            transform: translateY(0);
+        .stabilization-bar.pending { background: var(--amber); }
+        .stabilization-bar.indexed { background: var(--terminal-green); }
+
+        /* Card vazio (aguardando estabilização) */
+        .hud-card.empty .card-body { display: none; }
+        .hud-card.empty .card-header .card-id { color: var(--scan-color); }
+
+        /* Cores por estado de rastreamento */
+        .hud-card.track-new { border-left-color: var(--scan-color); }
+        .hud-card.track-stable { border-left-color: var(--terminal-green); }
+        .hud-card.track-indexed { border-left-color: var(--terminal-green); }
+        .hud-card.track-lost { border-left-color: var(--red); }
+
+        /* Área de ação (confirmar/rejeitar) */
+        .card-actions {
+            display: flex; gap: 6px;
+            padding: 6px 10px 8px;
+            border-top: 1px solid rgba(0, 255, 136, 0.18);
+            background: rgba(0, 0, 0, 0.2);
         }
-        .dossier-btn {
+        .action-btn {
             flex: 1;
-            background: rgba(0, 255, 136, 0.08);
-            border: 1px solid var(--terminal-green);
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(0, 255, 136, 0.4);
             color: var(--terminal-green);
-            padding: 10px 12px;
-            font-family: inherit;
-            font-size: 0.75rem;
+            padding: 5px 0;
+            font-family: var(--font-mono);
+            font-size: 0.66rem;
             letter-spacing: 1px;
             cursor: pointer;
-            border-radius: 4px;
-            transition: var(--transition-fast);
+            border-radius: 3px;
+            transition: all 0.2s ease;
             text-transform: uppercase;
         }
-        .dossier-btn:hover:not(:disabled) {
-            background: rgba(0, 255, 136, 0.2);
-            box-shadow: 0 0 12px var(--terminal-green);
+        .action-btn:hover:not(:disabled) {
+            background: rgba(0, 255, 136, 0.25);
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.35);
         }
-        .dossier-btn:disabled {
-            opacity: 0.3;
-            cursor: not-allowed;
-        }
-        .dossier-btn.primary {
-            background: rgba(0, 255, 136, 0.2);
-            box-shadow: 0 0 15px rgba(0, 255, 136, 0.4);
-        }
-        .dossier-btn.danger {
-            border-color: var(--red);
+        .action-btn.danger {
+            border-color: rgba(255, 51, 85, 0.5);
             color: var(--red);
         }
-        .dossier-btn.danger:hover:not(:disabled) {
-            background: rgba(255, 51, 85, 0.15);
-            box-shadow: 0 0 12px var(--red);
+        .action-btn.danger:hover:not(:disabled) {
+            background: rgba(255, 51, 85, 0.25);
+            box-shadow: 0 0 10px rgba(255, 51, 85, 0.35);
+        }
+        .action-btn:disabled {
+            opacity: 0.35; cursor: not-allowed;
+        }
+        .action-key {
+            display: block;
+            font-size: 0.58rem;
+            color: #888;
+            text-align: center;
+            margin-top: 2px;
         }
 
-        /* Barra de status */
+        /* Marcador de conexão (linha rosto → card) */
+        .connection-line {
+            position: absolute; height: 1px;
+            background: linear-gradient(90deg, var(--scan-color), transparent);
+            opacity: 0.7;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        /* ---------- Splash ---------- */
+        .splash-screen {
+            position: fixed; inset: 0;
+            background: var(--bg-color);
+            color: var(--terminal-green);
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            text-align: center; padding: 24px;
+            z-index: 1000;
+            transition: opacity 0.6s ease, visibility 0.6s;
+        }
+        .splash-screen.hidden { opacity: 0; visibility: hidden; }
+        .splash-logo {
+            font-size: 3.2rem; font-weight: bold; letter-spacing: 6px;
+            color: var(--amber); text-shadow: 0 0 20px var(--amber);
+            margin-bottom: 12px;
+        }
+        .splash-screen h1 { font-size: 1rem; margin-bottom: 8px; color: var(--scan-color); }
+        .splash-screen p { font-size: 0.88rem; color: #aaa; max-width: 520px; line-height: 1.6; }
+        .splash-screen .loading {
+            margin-top: 18px; color: var(--scan-color);
+            font-size: 0.85rem; min-height: 1.2em;
+        }
+
+        /* ---------- Barra de status ---------- */
         .status-bar {
             position: fixed; bottom: 0; left: 0; right: 0;
-            background: rgba(10, 10, 15, 0.85);
-            border-top: 1px solid var(--border-color);
-            padding: 12px 16px;
+            background: rgba(10, 10, 15, 0.82);
+            border-top: 1px solid var(--glass-border);
+            padding: 10px 16px;
             display: flex; justify-content: space-between; align-items: center;
-            z-index: 10;
-            backdrop-filter: blur(5px);
-            gap: 8px; flex-wrap: wrap;
+            z-index: 50;
+            backdrop-filter: blur(8px);
+            gap: 10px; flex-wrap: wrap;
         }
         .status-left, .status-right { display: flex; align-items: center; gap: 12px; }
         .indicator-dot {
@@ -275,151 +300,127 @@
         }
         .indicator-detalhes { color: var(--terminal-green); background-color: var(--terminal-green); box-shadow: 0 0 8px var(--terminal-green); }
         .indicator-alerta { color: var(--amber); background-color: var(--amber); box-shadow: 0 0 8px var(--amber); }
-        .indicator-perigo { color: var(--red); background-color: var(--red); box-shadow: 0 0 8px var(--red); animation: pulse 1.5s infinite; }
-        @keyframes pulse { 50% { opacity: 0.5; } }
-        .status-text { font-size: 0.85rem; color: var(--terminal-green); white-space: nowrap; }
+        .indicator-perigo { color: var(--red); background-color: var(--red); box-shadow: 0 0 8px var(--red); }
+        .status-text { font-size: 0.82rem; white-space: nowrap; }
         .status-text.alerta { color: var(--amber); }
         .status-text.perigo { color: var(--red); }
 
-        .controls { display: flex; gap: 8px; flex-wrap: wrap; }
+        .controls { display: flex; gap: 6px; flex-wrap: wrap; }
         .btn {
-            background: rgba(0, 255, 136, 0.1);
-            border: 1px solid var(--border-color);
+            background: rgba(0, 255, 136, 0.08);
+            border: 1px solid var(--glass-border);
             color: var(--terminal-green);
-            padding: 8px 14px;
+            padding: 7px 12px;
             font-family: inherit;
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             cursor: pointer;
-            transition: var(--transition-fast);
-            border-radius: 4px;
+            border-radius: 3px;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
         }
-        .btn:hover { background: rgba(0, 255, 136, 0.2); box-shadow: 0 0 8px var(--terminal-green); }
-        .btn.danger { border-color: var(--red); color: var(--red); }
-        .btn.danger:hover { background: rgba(255, 51, 85, 0.15); box-shadow: 0 0 8px var(--red); }
-        .btn.active { background: rgba(0, 255, 136, 0.3); box-shadow: 0 0 8px var(--terminal-green); }
+        .btn:hover { background: rgba(0, 255, 136, 0.22); box-shadow: 0 0 8px rgba(0, 255, 136, 0.35); }
+        .btn.danger { border-color: rgba(255, 51, 85, 0.5); color: var(--red); }
+        .btn.danger:hover { background: rgba(255, 51, 85, 0.22); box-shadow: 0 0 8px rgba(255, 51, 85, 0.35); }
+        .btn.active { background: rgba(0, 255, 136, 0.3); }
 
-        /* Painel lateral histórico */
+        /* ---------- Painel lateral ---------- */
         .side-panel {
-            position: fixed; top: 0; right: -400px;
-            width: 340px; max-width: 90%; height: 100vh;
-            background: linear-gradient(to bottom, #0a0a0f, #000);
-            border-left: 1px solid var(--border-color);
-            padding: 20px; overflow-y: auto;
+            position: fixed; top: 0; right: -380px;
+            width: 360px; max-width: 92%; height: 100vh;
+            background: linear-gradient(to bottom, #0a0a0f, #040608);
+            border-left: 1px solid var(--glass-border);
+            padding: 18px; overflow-y: auto;
             transition: right var(--transition-slow);
-            z-index: 20;
-            display: flex; flex-direction: column; gap: 12px;
+            z-index: 55;
+            backdrop-filter: blur(12px);
+            display: flex; flex-direction: column; gap: 14px;
         }
         .side-panel.open { right: 0; }
         .panel-header {
             display: flex; justify-content: space-between; align-items: center;
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--glass-border);
             padding-bottom: 10px;
         }
-        .panel-header h2 { font-size: 1rem; color: var(--amber); }
-        .panel-header button { background: transparent; border: none; color: var(--terminal-green); font-size: 1.2rem; cursor: pointer; }
-        .ficha, .metricas, .historico {
-            background: rgba(0, 0, 0, 0.4);
-            border: 1px solid var(--border-color);
+        .panel-header h2 { font-size: 0.95rem; color: var(--amber); letter-spacing: 1.5px; }
+        .panel-header button { background: transparent; border: none; color: var(--terminal-green); font-size: 1.3rem; cursor: pointer; }
+        .metricas { display: flex; gap: 8px; }
+        .metricas div {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid var(--glass-border);
             border-radius: 6px;
-            padding: 12px;
-            font-size: 0.8rem;
+            padding: 10px; text-align: center;
         }
-        .metricas { display: flex; justify-content: space-around; text-align: center; }
-        .metricas div { flex: 1; }
-        .metricas div span { display: block; font-size: 1.4rem; color: var(--amber); }
-        .historico ul { list-style: none; max-height: 300px; overflow-y: auto; }
-        .historico li { 
-            padding: 8px; border-bottom: 1px solid var(--border-color); 
-            font-size: 0.75rem; display: flex; justify-content: space-between; 
-            align-items: center; gap: 6px;
+        .metricas div span { display: block; font-size: 1.5rem; color: var(--amber); }
+        .metricas div span + span { font-size: 0.68rem; color: #7aa392; letter-spacing: 1px; }
+        .historico { flex: 1; overflow-y: auto; }
+        .historico strong { display: block; margin-bottom: 8px; color: var(--amber); font-size: 0.75rem; letter-spacing: 1px; }
+        .historico ul { list-style: none; }
+        .historico li {
+            padding: 7px; border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 4px; font-size: 0.72rem;
+            display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-bottom: 6px;
         }
         .historico li .codigo {
             color: var(--terminal-green); font-weight: bold;
-            background: rgba(0,255,136,0.1); padding: 2px 6px; border-radius: 3px;
-            font-size: 0.7rem; letter-spacing: 1px;
+            background: rgba(0, 255, 136, 0.12); padding: 1px 5px; border-radius: 2px;
+            letter-spacing: 1px;
         }
-        .historico li .nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; color: var(--amber); }
-        .historico .del-btn { color: var(--red); background: none; border: none; cursor: pointer; font-family: inherit; font-size: 0.9rem; padding: 0 4px; }
-
-        /* Splash */
-        .splash-screen {
-            position: fixed; inset: 0;
-            background: var(--bg-color); color: var(--terminal-green);
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            text-align: center; padding: 20px; z-index: 1000;
-        }
-        .splash-logo {
-            font-size: 4rem; font-weight: bold; letter-spacing: 4px;
-            color: var(--amber); text-shadow: 0 0 15px var(--amber);
-            margin-bottom: 16px;
-        }
-        .splash-screen h1 { font-size: 1.2rem; margin-bottom: 8px; }
-        .splash-screen p { font-size: 0.9rem; color: #aaa; max-width: 500px; line-height: 1.5; }
-        .splash-screen .loading {
-            margin-top: 20px; color: var(--accent-color);
-            font-size: 0.85rem; min-height: 1.2em;
-        }
+        .historico li .nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; color: var(--scan-color); }
+        .historico .del-btn { color: var(--red); background: none; border: none; cursor: pointer; font-family: inherit; font-size: 0.95rem; padding: 0 4px; }
 
         .disclaimer {
-            position: fixed; bottom: 65px; left: 0; right: 0;
-            text-align: center; font-size: 0.65rem; color: #777;
-            z-index: 6; padding: 8px; pointer-events: none;
+            position: fixed; bottom: 55px; left: 0; right: 0;
+            text-align: center; font-size: 0.64rem; color: #666;
+            z-index: 48; pointer-events: none;
         }
 
+        /* ---------- Ajustes responsivos ---------- */
         @media (max-width: 600px) {
-            .side-panel { width: 90%; }
-            .splash-logo { font-size: 2.5rem; }
-            .splash-screen h1 { font-size: 1rem; }
-            .status-text { font-size: 0.7rem; }
-            .btn { padding: 6px 10px; font-size: 0.7rem; }
-            .dossier-panel { padding: 14px; max-height: 88vh; }
-            .dossier-terminal { font-size: 0.68rem; min-height: 180px; }
-            .index-code-block .code-value { font-size: 1.8rem; }
+            .splash-logo { font-size: 2.2rem; }
+            .panel-header h2 { font-size: 0.88rem; }
+            .status-text { font-size: 0.72rem; }
+            .btn { padding: 6px 10px; font-size: 0.68rem; }
+            .hud-card { min-width: 185px; font-size: 0.68rem; }
+            .card-body { padding: 6px 9px; }
+            .card-row .label { font-size: 0.64rem; }
+            .card-row .value { font-size: 0.66rem; }
+        }
+
+        /* Tooltip de ajuda teclas */
+        .key-hint {
+            position: fixed; bottom: 55px; right: 16px;
+            font-size: 0.64rem; color: #555;
+            z-index: 48; pointer-events: none;
+            text-align: right;
         }
     </style>
 </head>
 <body>
 
+<!-- Splash de ativação -->
 <div class="splash-screen" id="splashScreen">
     <div class="splash-logo">HUMANO.EXE</div>
-    <h1>SISTEMA DE INDEXAÇÃO BIOMÉTRICA FICTÍCIA v1.0.0</h1>
-    <p>Módulos de detecção facial e geração de dossiês sintéticos.</p>
+    <h1>INTERFACE DE INDEXAÇÃO VISUAL · AR-HUD</h1>
+    <p>Módulos de detecção facial e geração de dossiês sintéticos em tempo real. Nenhuma identidade civil é reconhecida.</p>
     <div class="loading" id="loadingText">Aguardando ativação...</div>
-    <button class="btn" id="startButton" style="margin-top: 16px; padding: 12px 24px; font-size: 1rem;">▶ Ativar Câmera</button>
+    <button class="btn" id="startButton" style="margin-top: 20px; padding: 12px 28px; font-size: 1rem;">▶ ATIVAR CÂMERA</button>
 </div>
 
-<div class="disclaimer">Simulação interativa. Todos os dossiês são fictícios e gerados proceduralmente. Nenhum dado real é coletado.</div>
+<div class="disclaimer">Simulação interativa — todos os dossiês são fictícios e gerados proceduralmente. Nenhum dado real é coletado.</div>
+<div class="key-hint">[ESPAÇO] confirmar · [RETROCEDER] rejeitar</div>
 
 <video id="videoElement" autoplay playsinline muted></video>
-<canvas id="overlay"></canvas>
+<canvas id="hudCanvas"></canvas>
 
 <div class="scanner-overlay">
     <div class="scanline"></div>
     <div class="noise"></div>
+    <div class="vignette"></div>
 </div>
 
-<!-- ============================================================ *
-     DOSSIÊ - Painel principal de indexação                      *
-     ============================================================ -->
-<div class="dossier-panel" id="dossierPanel" role="dialog" aria-modal="false" aria-labelledby="dossierTitle">
-    <div class="dossier-header">
-        <span class="title" id="dossierTitle">▶ DOSSIÊ · EM CONSTRUÇÃO</span>
-        <span class="status-badge" id="dossierStatus">SCAN</span>
-    </div>
-    
-    <div class="dossier-terminal" id="dossierTerminal"></div>
-    
-    <div class="index-code-block" id="indexCodeBlock">
-        <div class="code-label">código de índice atribuído</div>
-        <div class="code-value" id="indexCodeValue">K-000</div>
-        <div class="code-desc" id="indexCodeDesc">aguardando confirmação</div>
-    </div>
-    
-    <div class="dossier-actions" id="dossierActions">
-        <button class="dossier-btn danger" id="btnRejeitar" disabled>✕ Rejeitar</button>
-        <button class="dossier-btn primary" id="btnIndexar" disabled>◉ Indexar</button>
-    </div>
-</div>
+<!-- Camada de cartões HUD (renderizada via DOM) -->
+<div id="dossierLayer"></div>
 
 <!-- Barra de status -->
 <div class="status-bar">
@@ -444,11 +445,11 @@
         <button id="closePanelBtn">&times;</button>
     </div>
     <div class="metricas">
-        <div><span id="detecoesCount">0</span>Detecções</div>
-        <div><span id="registrosCount">0</span>Indexados</div>
+        <div><span id="detecoesCount">0</span><span>Detecções</span></div>
+        <div><span id="registrosCount">0</span><span>Indexados</span></div>
     </div>
     <div class="historico">
-        <strong style="display:block; margin-bottom:8px; color:var(--amber); font-size:0.75rem;">DOSSIÊS CONFIRMADOS</strong>
+        <strong>DOSSIÊS CONFIRMADOS</strong>
         <ul id="historicoLista"></ul>
     </div>
     <button class="btn" id="exportarBtn" style="width:100%;">⬇ Exportar Relatório (.json)</button>
@@ -459,28 +460,26 @@
 import { FaceDetector, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
 
 const humano = (() => {
+    /* ============================ ESTADO ============================ */
     const state = {
         cameraAtiva: false,
         pausado: false,
         facingMode: 'user',
         detectionCount: 0,
         recordCount: 0,
-        trackedFaces: [],
+        trackedFaces: [],          // faces rastreando no canvas
+        dossierLayer: new Map(),   // idRastro → cartão DOM
         sessionRecords: [],
         lastFrameTime: 0,
         stabilizationDelay: 1000,
         trackExpiry: 3000,
-        mergeProximity: 150,
+        mergeProximity: 120,
         detectorReady: false,
         videoReady: false,
         loopRunning: false,
-        // controle do dossiê
-        dossierActive: false,
-        dossierStep: 0,
-        dossierFaceId: null,
-        dossierData: null,
+        dossierConfirming: false,  // se está aguardando confirmação
+        dossierActiveTrackId: null,
         indexCounter: 0,
-        prefixCounter: {},
         typewriterTimers: []
     };
 
@@ -501,26 +500,19 @@ const humano = (() => {
         closePanelBtn: document.getElementById('closePanelBtn'),
         exportarBtn: document.getElementById('exportarBtn'),
         limparSessaoBtn: document.getElementById('limparSessaoBtn'),
-        // dossiê
-        dossierPanel: document.getElementById('dossierPanel'),
-        dossierStatus: document.getElementById('dossierStatus'),
-        dossierTerminal: document.getElementById('dossierTerminal'),
-        indexCodeBlock: document.getElementById('indexCodeBlock'),
-        indexCodeValue: document.getElementById('indexCodeValue'),
-        indexCodeDesc: document.getElementById('indexCodeDesc'),
-        dossierActions: document.getElementById('dossierActions'),
-        btnIndexar: document.getElementById('btnIndexar'),
-        btnRejeitar: document.getElementById('btnRejeitar')
+        dossierLayer: document.getElementById('dossierLayer'),
+        video: document.getElementById('videoElement'),
+        canvas: document.getElementById('hudCanvas')
     };
 
-    const video = document.getElementById('videoElement');
-    const canvas = document.getElementById('overlay');
+    const video = elementos.video;
+    const canvas = elementos.canvas;
     const ctx = canvas.getContext('2d');
     let faceDetector = null;
     let currentStream = null;
     let animationFrameId = null;
 
-    /* =========================== POOLS NARRATIVOS =========================== */
+    /* ============================ POOLS NARRATIVOS ============================ */
     const NOMES = ["AXIOM", "NOVA", "ZEUS", "LYRA", "ORION", "VEGA", "THANE", "MIRA", "KAIROS", "ECHO", "NEXUS", "HELIX", "QUASAR", "VOID", "PRISM", "ONYX"];
     const PERFIS = ["OBSERVADOR", "NÓ URBANO", "AGENTE ANÔNIMO", "PRESENÇA RECORRENTE", "ENTIDADE NÃO CLASSIFICADA", "SINAL HUMANO", "ARQUIVO TEMPORÁRIO", "VETOR SILENCIOSO", "FRAGMENTO ATIVO"];
     const CLASSES = ["ALFA", "BETA", "GAMA", "DELTA", "ÉPSILON", "ZETA", "ÔMEGA"];
@@ -531,13 +523,12 @@ const humano = (() => {
     function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
     function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
     function randHex(len) { 
-        let s = ''; 
-        const chars = 'ABCDEF0123456789'; 
+        let s = ''; const chars = 'ABCDEF0123456789'; 
         for (let i = 0; i < len; i++) s += chars[Math.floor(Math.random() * chars.length)]; 
         return s; 
     }
+
     function gerarCodigoIndice() {
-        // Gera K1, K2, ..., I1, I2, etc. Sobe a letra a cada 9 registros.
         state.indexCounter++;
         const letras = 'KIHGFEDCBA';
         const idx = Math.floor((state.indexCounter - 1) / 9);
@@ -546,7 +537,24 @@ const humano = (() => {
         return `${letra}${num}`;
     }
 
-    /* =========================== INIT =========================== */
+    function gerarDadosDossie() {
+        const nomeBase = rand(NOMES);
+        const num = randInt(100, 999);
+        const nome = `${nomeBase}-${num}`;
+        const idade = randInt(18, 72);
+        const email = `${nome.toLowerCase().replace(/[^a-z0-9]/g, '.')}@void.invalid`;
+        const documento = `ID-DOC-${randHex(8)}`;
+        const hash = randHex(12) + '-' + randHex(12);
+        const score = (Math.random() * (99.9 - 82.0) + 82.0).toFixed(1);
+        return {
+            nome, idade, email, documento, hash,
+            perfil: rand(PERFIS), classe: rand(CLASSES),
+            origem: rand(ORIGENS), tag: rand(TAGS),
+            anomalia: rand(ANOMALIAS), score
+        };
+    }
+
+    /* ============================ INICIALIZAÇÃO ============================ */
     function init() {
         elementos.startButton.addEventListener('click', iniciarSistema);
         elementos.togglePauseBtn.addEventListener('click', alternarPausa);
@@ -556,9 +564,21 @@ const humano = (() => {
         elementos.closePanelBtn.addEventListener('click', fecharPainel);
         elementos.exportarBtn.addEventListener('click', exportarRelatorio);
         elementos.limparSessaoBtn.addEventListener('click', limparSessao);
-        elementos.btnIndexar.addEventListener('click', confirmarIndexacao);
-        elementos.btnRejeitar.addEventListener('click', rejeitarDossie);
+        document.addEventListener('keydown', tratarTeclado);
+        window.addEventListener('resize', ajustarCanvas);
         carregarHistorico();
+    }
+
+    function tratarTeclado(e) {
+        if (elementos.splashScreen.classList.contains('hidden') || elementos.sidePanel.classList.contains('open')) return;
+        if (!state.dossierConfirming) return;
+        if (e.code === 'Space' || e.code === 'Enter') {
+            e.preventDefault();
+            confirmarIndexacao();
+        } else if (e.code === 'Backspace' || e.code === 'Escape') {
+            e.preventDefault();
+            rejeitarDossie();
+        }
     }
 
     async function iniciarSistema() {
@@ -583,9 +603,9 @@ const humano = (() => {
 
             state.detectorReady = true;
             elementos.loadingText.textContent = 'Detector pronto. Solicitando câmera...';
-
             await iniciarCamera();
-            elementos.splashScreen.style.display = 'none';
+            elementos.splashScreen.classList.add('hidden');
+            ajustarCanvas();
             iniciarLoopDeteccao();
         } catch (e) {
             console.error("Erro na inicialização:", e);
@@ -615,7 +635,6 @@ const humano = (() => {
             await video.play();
             state.cameraAtiva = true;
             state.videoReady = true;
-            ajustarCanvas();
             atualizarStatus("DETECTANDO...", 'detalhes');
         } catch (err) {
             console.error("Erro ao acessar câmera:", err);
@@ -626,15 +645,16 @@ const humano = (() => {
     function ajustarCanvas() {
         canvas.width = video.videoWidth || 640;
         canvas.height = video.videoHeight || 480;
+        atualizarPosicoesCards();
     }
 
     function iniciarLoopDeteccao() {
         if (state.loopRunning) return;
         state.loopRunning = true;
         const loop = () => {
-            if (state.cameraAtiva && state.videoReady && !state.pausado && !state.dossierActive) {
+            if (state.cameraAtiva && state.videoReady && !state.pausado) {
                 const now = performance.now();
-                if (now - state.lastFrameTime > 80) {
+                if (now - state.lastFrameTime > 70) {
                     state.lastFrameTime = now;
                     if (video.readyState >= 2 && faceDetector) {
                         try {
@@ -649,7 +669,7 @@ const humano = (() => {
         animationFrameId = requestAnimationFrame(loop);
     }
 
-    /* =========================== DETECÇÃO =========================== */
+    /* ============================ DETECÇÃO ============================ */
     function processarDeteccoes(results) {
         const now = Date.now();
         const detections = results.detections || [];
@@ -657,9 +677,10 @@ const humano = (() => {
         state.detectionCount += detections.length;
         atualizarMetricas();
 
+        // Remover trilhas expiradas (que reaparecem → nova detecção)
         state.trackedFaces = state.trackedFaces.filter(f => (now - f.lastSeen) < state.trackExpiry);
 
-        detections.forEach(detection => {
+        for (const detection of detections) {
             const bbox = detection.boundingBox;
             const cx = bbox.originX + bbox.width / 2;
             const cy = bbox.originY + bbox.height / 2;
@@ -672,171 +693,150 @@ const humano = (() => {
                 const newId = state.trackedFaces.length > 0
                     ? Math.max(...state.trackedFaces.map(t => t.id)) + 1
                     : 1;
-                tracked = {
-                    id: newId, cx, cy,
-                    createdAt: now, lastSeen: now,
-                    stabilized: false, recordGenerated: false
-                };
+                tracked = { id: newId, cx, cy, createdAt: now, lastSeen: now, stabilized: false, dossierGenerated: false };
                 state.trackedFaces.push(tracked);
+                criarCartaoHUD(tracked);
             } else {
                 tracked.cx = cx; tracked.cy = cy; tracked.lastSeen = now;
             }
 
-            // Estabilização -> dispara dossiê
+            // Estabilização → gera dossiê uma única vez por trilha
             if (!tracked.stabilized && (now - tracked.createdAt) > state.stabilizationDelay) {
                 tracked.stabilized = true;
-                if (!tracked.recordGenerated && !state.dossierActive) {
-                    tracked.recordGenerated = true;
-                    iniciarDossie(tracked);
+                if (!tracked.dossierGenerated) {
+                    tracked.dossierGenerated = true;
+                    gerarCartaoComDados(tracked);
                 }
             }
-        });
+        }
 
-        // Status
-        if (detections.length === 0) {
+        atualizarStatusParaEstado(detections.length);
+        desenharElementos(detections);
+    }
+
+    function atualizarStatusParaEstado(qtd) {
+        if (qtd === 0) {
             atualizarStatus("SEM ROSTO DETECTADO", 'detalhes');
-        } else if (state.dossierActive) {
-            atualizarStatus("DOSSIÊ ABERTO", 'alerta');
-        } else if (detections.length > 1) {
-            atualizarStatus(`ANALISANDO ${detections.length} ROSTOS...`, 'alerta');
+            return;
+        }
+        if (state.dossierConfirming) {
+            atualizarStatus("AGUARDANDO CONFIRMAÇÃO", 'alerta');
+            return;
+        }
+        if (qtd > 1) {
+            atualizarStatus(`ANALISANDO ${qtd} ROSTOS...`, 'alerta');
         } else {
-            const activeTrack = state.trackedFaces.find(tf => (now - tf.lastSeen) < state.trackExpiry);
-            if (activeTrack?.recordGenerated) {
+            const active = state.trackedFaces.find(tf => (Date.now() - tf.lastSeen) < state.trackExpiry);
+            if (active?.dossierGenerated) {
                 atualizarStatus("AGUARDANDO CONFIRMAÇÃO", 'alerta');
             } else {
                 atualizarStatus("ANALISANDO...", 'alerta');
             }
         }
-
-        desenharElementos(detections);
     }
 
-    /* =========================== DOSSIÊ - MÁQUINA DE ESTADOS =========================== */
-    function iniciarDossie(faceTrack) {
-        state.dossierActive = true;
-        state.dossierStep = 0;
-        state.dossierFaceId = faceTrack.id;
-        state.dossierData = gerarDadosDossie();
-        state.typewriterTimers.forEach(t => clearTimeout(t));
-        state.typewriterTimers = [];
+    /* ============================ CARTÕES HUD ============================ */
+    function criarCartaoHUD(faceTrack) {
+        const card = document.createElement('div');
+        card.className = 'hud-card empty track-new';
+        card.dataset.trackId = faceTrack.id;
 
-        // Reset UI
-        elementos.dossierTerminal.innerHTML = '';
-        elementos.dossierPanel.classList.add('visible');
-        elementos.dossierStatus.textContent = 'SCAN';
-        elementos.dossierActions.classList.remove('visible');
-        elementos.indexCodeBlock.classList.remove('visible');
-        elementos.btnIndexar.disabled = true;
-        elementos.btnRejeitar.disabled = true;
-        elementos.indexCodeValue.textContent = '— — —';
-        elementos.indexCodeDesc.textContent = 'aguardando análise';
+        const header = document.createElement('div');
+        header.className = 'card-header';
+        const idSpan = document.createElement('span');
+        idSpan.className = 'card-id';
+        idSpan.textContent = `FACE-${faceTrack.id}`;
+        const status = document.createElement('span');
+        status.className = 'card-status';
+        status.textContent = 'SCAN';
+        header.append(idSpan, status);
 
-        // Sequência de linhas que serão digitadas
-        const d = state.dossierData;
-        const linhas = [
-            { t: '> INICIANDO DOSSIÊ PARA FACE-' + faceTrack.id, cls: 'ok', delay: 0 },
-            { t: '  varredura biométrica................ OK', cls: 'ok', delay: 400 },
-            { t: '  extraindo vetores faciais.......... OK', cls: 'ok', delay: 800 },
-            { t: '  consultando base sintética........ OK', cls: 'ok', delay: 1200 },
-            { t: '', cls: '', delay: 1500 },
-            { t: '  ┌─ DADOS DECIFRADOS ──────────────', cls: 'cipher', delay: 1700 },
-            { t: '  │ nome............ ' + d.nome, cls: '', delay: 2000 },
-            { t: '  │ idade........... ' + d.idade + ' anos', cls: '', delay: 2300 },
-            { t: '  │ perfil.......... ' + d.perfil, cls: '', delay: 2600 },
-            { t: '  │ classe.......... ' + d.classe, cls: '', delay: 2900 },
-            { t: '  │ origem.......... ' + d.origem, cls: '', delay: 3200 },
-            { t: '  │ tag............. ' + d.tag, cls: '', delay: 3500 },
-            { t: '  │ score........... ' + d.score + '%', cls: '', delay: 3800 },
-            { t: '  │ anomalia........ ' + d.anomalia, cls: '', delay: 4100 },
-            { t: '  │ e-mail.......... ' + d.email, cls: '', delay: 4400 },
-            { t: '  │ documento....... ' + d.documento, cls: 'warn', delay: 4700 },
-            { t: '  │ hash............ ' + d.hash, cls: 'cipher', delay: 5000 },
-            { t: '  └─────────────────────────────────', cls: 'cipher', delay: 5300 },
-            { t: '', cls: '', delay: 5500 },
-            { t: '  STATUS: PRONTO PARA INDEXAÇÃO', cls: 'ok', delay: 5800 }
-        ];
+        const body = document.createElement('div');
+        body.className = 'card-body empty-body';
+        body.innerHTML = '<div style="text-align:center;color:#5a796a;padding:6px 0;">varredura biométrica em andamento...</div>';
 
-        // Digita cada linha
-        linhas.forEach((linha, i) => {
-            const timer = setTimeout(() => {
-                if (!state.dossierActive) return;
-                digitarLinha(linha.t, linha.cls, () => {
-                    if (i === linhas.length - 1) {
-                        // Finalizou -> mostra código e ações
-                        finalizarDossie();
-                    }
-                });
-            }, linha.delay);
-            state.typewriterTimers.push(timer);
-        });
+        const edgeTop = document.createElement('div');
+        edgeTop.className = 'hud-card-edge';
+        const cornerTL = document.createElement('div'); cornerTL.className = 'hud-card-corner corner-tl';
+        const cornerTR = document.createElement('div'); cornerTR.className = 'hud-card-corner corner-tr';
+
+        const bar = document.createElement('div');
+        bar.className = 'stabilization-bar pending';
+        card.appendChild(edgeTop);
+        card.appendChild(cornerTL);
+        card.appendChild(cornerTR);
+        card.appendChild(header);
+        card.appendChild(body);
+        card.appendChild(bar);
+
+        elementos.dossierLayer.appendChild(card);
+        state.dossierLayer.set(faceTrack.id, { card, statusElement: status, bodyElement: body, bar });
+        atualizarPosicoesCards();
     }
 
-    function digitarLinha(texto, classe, onDone) {
-        const lineEl = document.createElement('span');
-        lineEl.className = 'line';
-        if (classe) lineEl.classList.add(classe);
-        elementos.dossierTerminal.appendChild(lineEl);
+    function gerarCartaoComDados(faceTrack) {
+        const d = gerarDadosDossie();
+        d.codigo = gerarCodigoIndice();
+        faceTrack.dossierData = d;
 
-        let i = 0;
-        const cursor = document.createElement('span');
-        cursor.className = 'cursor';
-        lineEl.appendChild(cursor);
+        const entry = state.dossierLayer.get(faceTrack.id);
+        const card = entry.card;
+        const status = entry.statusElement;
+        const body = entry.bodyElement;
+        const bar = entry.bar;
 
-        const tick = () => {
-            if (!state.dossierActive) return;
-            if (i < texto.length) {
-                cursor.before(document.createTextNode(texto[i]));
-                i++;
-                setTimeout(tick, 12 + Math.random() * 20);
-            } else {
-                cursor.remove();
-                if (onDone) onDone();
-            }
-        };
-        tick();
-        elementos.dossierTerminal.scrollTop = elementos.dossierTerminal.scrollHeight;
+        card.classList.remove('empty', 'track-new');
+        card.classList.add('track-stable');
+        status.textContent = 'PRONTO';
+        status.classList.add('pending');
+
+        body.innerHTML = `
+            <div class="card-row"><span class="label">NOME</span><span class="value">${d.nome}</span></div>
+            <div class="card-row"><span class="label">IDADE</span><span class="value">${d.idade} anos</span></div>
+            <div class="card-row"><span class="label">PERFIL</span><span class="value">${d.perfil}</span></div>
+            <div class="card-row"><span class="label">CLASSE</span><span class="value">${d.classe}</span></div>
+            <div class="card-row"><span class="label">ORIGEM</span><span class="value">${d.origem}</span></div>
+            <div class="card-row"><span class="label">TAG</span><span class="value">${d.tag}</span></div>
+            <div class="card-row"><span class="label">SCORE</span><span class="value score">${d.score}%</span></div>
+            <div class="card-row"><span class="label">ANOMALIA</span><span class="value">${d.anomalia}</span></div>
+            <div class="card-identity">COD-ÍNDICE: ${d.codigo} · H-${String(faceTrack.id).padStart(4,'0')}</div>
+        `;
+
+        bar.style.width = '100%';
+        bar.classList.remove('pending');
+        bar.classList.add('stabilization-bar-indexed');
+
+        state.dossierConfirming = true;
+        state.dossierActiveTrackId = faceTrack.id;
+        // Animação de pulso no card para chamar atenção
+        pulseCard(card);
     }
 
-    function finalizarDossie() {
-        // Gera código de índice
-        const codigo = gerarCodigoIndice();
-        state.dossierData.codigo = codigo;
-
-        elementos.dossierStatus.textContent = 'PRONTO';
-        elementos.indexCodeValue.textContent = codigo;
-        elementos.indexCodeDesc.textContent = 'aguardando confirmação do operador';
-        elementos.indexCodeBlock.classList.add('visible');
-
-        // Habilita botões
-        elementos.btnIndexar.disabled = false;
-        elementos.btnRejeitar.disabled = false;
-        elementos.dossierActions.classList.add('visible');
-        atualizarStatus("AGUARDANDO CONFIRMAÇÃO", 'alerta');
+    function pulseCard(card) {
+        card.style.animation = 'none';
+        card.offsetHeight; // trigger reflow
+        card.style.animation = 'hudPulse 1.8s ease-in-out 3';
     }
 
+    // Adiciona a animação hudPulse via JS para garantir compatibilidade
+    const style = document.createElement('style');
+    style.textContent = `@keyframes hudPulse { 0%,100%{box-shadow:0 8px 32px rgba(0,0,0,0.45),0 0 0 1px rgba(0,255,136,0.06)} 50%{box-shadow:0 8px 40px rgba(0,255,136,0.25),0 0 0 1px rgba(0,255,136,0.5);border-left-color:var(--amber)} }`;
+    document.head.appendChild(style);
+
+    /* ============================ CONFIRMAÇÃO / REJEIÇÃO ============================ */
     function confirmarIndexacao() {
-        if (!state.dossierData) return;
-        const d = state.dossierData;
-        const now = new Date();
+        const trackId = state.dossierActiveTrackId;
+        if (!trackId) return;
+        const track = state.trackedFaces.find(t => t.id === trackId);
+        if (!track || !track.dossierData) return;
+
+        const d = track.dossierData;
         const registroId = `HUM-${String(state.sessionRecords.length + 1).padStart(6, '0')}`;
 
-        const ficha = {
-            id: registroId,
-            codigo: d.codigo,
-            nome: d.nome,
-            idade: d.idade,
-            email: d.email,
-            documento: d.documento,
-            perfil: d.perfil,
-            classe: d.classe,
-            origem: d.origem,
-            tag: d.tag,
-            score: d.score,
-            anomalia: d.anomalia,
-            hash: d.hash,
-            dataHora: now.toLocaleString('pt-BR'),
-            status: "INDEXADO"
-        };
+        const ficha = { id: registroId, codigo: d.codigo, nome: d.nome, idade: d.idade,
+            email: d.email, documento: d.documento, perfil: d.perfil, classe: d.classe,
+            origem: d.origem, tag: d.tag, score: d.score, anomalia: d.anomalia,
+            hash: d.hash, dataHora: new Date().toLocaleString('pt-BR'), status: "INDEXADO" };
 
         state.sessionRecords.push(ficha);
         state.recordCount = state.sessionRecords.length;
@@ -844,73 +844,160 @@ const humano = (() => {
         renderizarHistorico();
         atualizarMetricas();
 
-        // Feedback visual: transforma o painel em "CONFIRMADO"
-        elementos.dossierStatus.textContent = 'INDEXADO';
-        elementos.indexCodeDesc.textContent = '✓ registro consolidado na sessão';
-        elementos.btnIndexar.disabled = true;
-        elementos.btnRejeitar.disabled = true;
+        const entry = state.dossierLayer.get(trackId);
+        entry.card.classList.remove('track-stable');
+        entry.card.classList.add('track-indexed');
+        entry.status.textContent = 'INDEXADO';
+        entry.status.classList.remove('pending');
+        entry.status.classList.add('indexado');
+        entry.bar.classList.remove('stabilization-bar-indexed');
+        entry.bar.classList.add('stabilization-bar-indexed');
 
-        const okLine = document.createElement('span');
-        okLine.className = 'line ok';
-        okLine.textContent = '> ✓ DOSSIÊ ' + d.codigo + ' INDEXADO EM ' + now.toLocaleTimeString('pt-BR');
-        elementos.dossierTerminal.appendChild(okLine);
-        elementos.dossierTerminal.scrollTop = elementos.dossierTerminal.scrollHeight;
+        const actions = document.createElement('div');
+        actions.className = 'card-actions';
+        actions.innerHTML = `
+            <button class="action-btn">confirmando...</button>
+            <span class="action-key">[ESPAÇO]</span>
+        `;
+        entry.card.appendChild(actions);
 
+        state.dossierConfirming = false;
+        state.dossierActiveTrackId = null;
         atualizarStatus("REGISTRO INDEXADO: " + d.codigo, 'detalhes');
-
-        // Fecha após 2.5s
-        setTimeout(() => {
-            fecharDossie();
-        }, 2500);
     }
 
     function rejeitarDossie() {
-        if (!state.dossierData) return;
-        const codigo = state.dossierData.codigo;
-        const line = document.createElement('span');
-        line.className = 'line warn';
-        line.textContent = '> ✕ DOSSIÊ ' + codigo + ' REJEITADO';
-        elementos.dossierTerminal.appendChild(line);
-        elementos.btnIndexar.disabled = true;
-        elementos.btnRejeitar.disabled = true;
-        elementos.indexCodeDesc.textContent = '✕ descartado';
-        atualizarStatus("DOSSIÊ REJEITADO", 'perigo');
-        setTimeout(() => fecharDossie(), 1500);
+        const trackId = state.dossierActiveTrackId;
+        if (!trackId) return;
+        const track = state.trackedFaces.find(t => t.id === trackId);
+        if (!track || !track.dossierData) return;
+        const d = track.dossierData;
+
+        const entry = state.dossierLayer.get(trackId);
+        entry.card.classList.remove('track-stable');
+        entry.card.classList.add('track-lost');
+        entry.status.textContent = 'REJEITADO';
+        entry.status.classList.remove('pending');
+
+        const rejectLine = document.createElement('div');
+        rejectLine.style.color = 'var(--red)';
+        rejectLine.style.textAlign = 'center';
+        rejectLine.style.padding = '5px 0';
+        rejectLine.style.fontSize = '0.64rem';
+        rejectLine.style.textShadow = '0 0 6px rgba(255,51,85,0.4)';
+        rejectLine.textContent = '> rejeitado pelo operador';
+        entry.bodyElement.appendChild(rejectLine);
+
+        state.dossierConfirming = false;
+        state.dossierActiveTrackId = null;
+        atualizarStatus("DOSSIÊ REJEITADO: " + d.codigo, 'perigo');
     }
 
-    function fecharDossie() {
-        state.dossierActive = false;
-        elementos.dossierPanel.classList.remove('visible');
-        // reseta trilhas para permitir nova detecção
-        state.trackedFaces = [];
+    function atualizarPosicoesCards() {
+        const vW = video.clientWidth;
+        const vH = video.clientHeight;
+        const cW = canvas.width;
+        const cH = canvas.height;
+        const ratio = vW / cW || 1;
+        const yRatio = vH / cH || 1;
+
+        state.trackedFaces.forEach(track => {
+            const entry = state.dossierLayer.get(track.id);
+            if (!entry) return;
+            const card = entry.card;
+
+            const w = 250, h = 180;
+            const cx = track.cx * ratio;
+            const cy = track.cy * yRatio;
+
+            // Posicionar card abaixo do rosto (lado direito, com margem de segurança)
+            let left = cx + 14 * ratio;
+            let top = (cy + 10 * yRatio) - h / 2;
+
+            // Manter dentro da tela
+            if (left + w > vW - 8) left = vW - w - 8;
+            if (left < 8) left = 8;
+            if (top < 8) top = 8;
+            if (top + h > vH - 8) top = vH - h - 8;
+
+            card.style.left = `${left}px`;
+            card.style.top = `${top}px`;
+            card.style.width = `${w}px`;
+        });
     }
 
-    /* =========================== GERAÇÃO DE DADOS =========================== */
-    function gerarDadosDossie() {
-        const nomeBase = rand(NOMES);
-        const num = randInt(100, 999);
-        const nome = `${nomeBase}-${num}`;
-        const idade = randInt(18, 72);
-        const email = `${nome.toLowerCase().replace(/[^a-z0-9]/g, '.')}@void.invalid`;
-        const documento = `ID-DOC-${randHex(8)}`;
-        const hash = randHex(12) + '-' + randHex(12);
-        const score = (Math.random() * (99.9 - 82.0) + 82.0).toFixed(1);
-        return {
-            nome,
-            idade,
-            email,
-            documento,
-            hash,
-            perfil: rand(PERFIS),
-            classe: rand(CLASSES),
-            origem: rand(ORIGENS),
-            tag: rand(TAGS),
-            anomalia: rand(ANOMALIAS),
-            score
-        };
+    /* ============================ CANVAS (CAMADA AR) ============================ */
+    function desenharElementos(detections) {
+        const w = canvas.width, h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+
+        detections.forEach(detection => {
+            const bbox = detection.boundingBox;
+            const startX = bbox.originX, startY = bbox.originY;
+            const boxWidth = bbox.width, boxHeight = bbox.height;
+            const cx = startX + boxWidth / 2;
+            const cy = startY + boxHeight / 2;
+
+            const tracked = state.trackedFaces.find(tf =>
+                Math.hypot(tf.cx - cx, tf.cy - cy) < state.mergeProximity
+            );
+
+            let color, dash;
+            if (tracked?.dossierData) {
+                color = '#00ff88'; dash = [4, 6];
+            } else if (tracked?.stabilized) {
+                color = '#ffaa00'; dash = [5, 5];
+            } else {
+                color = '#00ffcc'; dash = [3, 8];
+            }
+
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.8;
+            ctx.setLineDash(dash);
+            ctx.strokeRect(startX, startY, boxWidth, boxHeight);
+            ctx.setLineDash([]);
+
+            // Cantos marcados
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = color;
+            const m = 6;
+            const cornerSegments = [
+                {x: startX, y: startY, dx: m, dy: 0}, {x: startX, y: startY, dx: 0, dy: m},
+                {x: startX + boxWidth, y: startY, dx: -m, dy: 0}, {x: startX + boxWidth, y: startY, dx: 0, dy: m},
+                {x: startX, y: startY + boxHeight, dx: m, dy: 0}, {x: startX, y: startY + boxHeight, dx: 0, dy: -m},
+                {x: startX + boxWidth, y: startY + boxHeight, dx: -m, dy: 0}, {x: startX + boxWidth, y: startY + boxHeight, dx: 0, dy: -m}
+            ];
+            ctx.beginPath();
+            cornerSegments.forEach(s => {
+                ctx.moveTo(s.x, s.y);
+                ctx.lineTo(s.x + s.dx, s.y + s.dy);
+            });
+            ctx.stroke();
+
+            // Etiqueta de rastreamento
+            ctx.fillStyle = 'rgba(10, 10, 15, 0.75)';
+            ctx.fillRect(startX, startY - 20, 98, 18);
+            ctx.fillStyle = color;
+            ctx.font = "600 11px monospace";
+            ctx.textAlign = "left";
+            ctx.fillText(`FACE-${tracked ? tracked.id : '?'}`, startX + 4, startY - 7);
+
+            // Anomalia visual quando indexada
+            if (tracked?.dossierData) {
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(startX + boxWidth - 8, startY + boxHeight - 8, 5, 0, 2 * Math.PI);
+                ctx.fill();
+                // brilho
+                ctx.beginPath();
+                ctx.arc(cx, cy, 28, 0, 2 * Math.PI);
+                ctx.strokeStyle = `rgba(0, 255, 136, 0.12)`;
+                ctx.stroke();
+            }
+        });
     }
 
-    /* =========================== INTERFACE =========================== */
+    /* ============================ INTERFACE ============================ */
     function atualizarStatus(texto, classe = 'detalhes') {
         elementos.statusText.textContent = texto;
         elementos.statusText.className = 'status-text';
@@ -922,73 +1009,6 @@ const humano = (() => {
     function atualizarMetricas() {
         elementos.detecoesCount.textContent = state.detectionCount;
         elementos.registrosCount.textContent = state.recordCount;
-    }
-
-    /* =========================== CANVAS =========================== */
-    function desenharElementos(detections) {
-        const w = canvas.width, h = canvas.height;
-        ctx.clearRect(0, 0, w, h);
-
-        detections.forEach((detection, index) => {
-            const bbox = detection.boundingBox;
-            const startX = bbox.originX;
-            const startY = bbox.originY;
-            const boxWidth = bbox.width;
-            const boxHeight = bbox.height;
-            const cx = startX + boxWidth / 2;
-            const cy = startY + boxHeight / 2;
-
-            const tracked = state.trackedFaces.find(tf =>
-                Math.hypot(tf.cx - cx, tf.cy - cy) < state.mergeProximity
-            );
-            const color = tracked?.recordGenerated ? '#ff3355' : (tracked?.stabilized ? '#ffaa00' : '#00ffcc');
-
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2.5;
-            ctx.setLineDash([6, 4]);
-            ctx.strokeRect(startX, startY, boxWidth, boxHeight);
-            ctx.setLineDash([]);
-
-            const offset = 12;
-            ctx.lineWidth = 3;
-            ctx.strokeStyle = color;
-            ctx.beginPath();
-            ctx.moveTo(startX, startY + offset); ctx.lineTo(startX, startY); ctx.lineTo(startX + offset, startY);
-            ctx.moveTo(startX + boxWidth, startY + offset); ctx.lineTo(startX + boxWidth, startY); ctx.lineTo(startX + boxWidth - offset, startY);
-            ctx.moveTo(startX, startY + boxHeight - offset); ctx.lineTo(startX, startY + boxHeight); ctx.lineTo(startX + offset, startY + boxHeight);
-            ctx.moveTo(startX + boxWidth, startY + boxHeight - offset); ctx.lineTo(startX + boxWidth, startY + boxHeight); ctx.lineTo(startX + boxWidth - offset, startY + boxHeight);
-            ctx.stroke();
-
-            ctx.fillStyle = 'rgba(0,0,0,0.7)';
-            ctx.fillRect(startX, startY - 22, 110, 20);
-            ctx.fillStyle = color;
-            ctx.font = "bold 12px monospace";
-            ctx.textAlign = "left";
-            ctx.fillText(`FACE-${index + 1}`, startX + 5, startY - 8);
-
-            if (tracked?.recordGenerated) {
-                ctx.fillStyle = '#ff3355';
-                ctx.beginPath();
-                ctx.arc(startX + boxWidth - 10, startY + boxHeight - 10, 6, 0, 2 * Math.PI);
-                ctx.fill();
-            }
-        });
-    }
-
-    /* =========================== CONTROLES =========================== */
-    function encerrarCamera() {
-        if (currentStream) {
-            currentStream.getTracks().forEach(t => t.stop());
-            currentStream = null;
-        }
-        video.srcObject = null;
-        state.cameraAtiva = false;
-        state.videoReady = false;
-        state.pausado = false;
-        elementos.togglePauseBtn.textContent = "Pausar";
-        atualizarStatus("CÂMERA ENCERRADA", 'perigo');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        fecharDossie();
     }
 
     function alternarPausa() {
@@ -1007,10 +1027,33 @@ const humano = (() => {
         catch (e) { atualizarStatus("ERRO AO TROCAR CÂMERA", 'perigo'); }
     }
 
+    function encerrarCamera() {
+        if (currentStream) {
+            currentStream.getTracks().forEach(t => t.stop());
+            currentStream = null;
+        }
+        video.srcObject = null;
+        state.cameraAtiva = false;
+        state.videoReady = false;
+        state.pausado = false;
+        elementos.togglePauseBtn.textContent = "Pausar";
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        limparCartoes();
+        fecharPainel();
+    }
+
+    function limparCartoes() {
+        state.trackedFaces = [];
+        state.dossierConfirming = false;
+        state.dossierActiveTrackId = null;
+        elementos.dossierLayer.innerHTML = '';
+        state.dossierLayer.clear();
+    }
+
     function abrirPainel() { elementos.sidePanel.classList.add('open'); renderizarHistorico(); }
     function fecharPainel() { elementos.sidePanel.classList.remove('open'); }
 
-    /* =========================== PERSISTÊNCIA =========================== */
+    /* ============================ PERSISTÊNCIA ============================ */
     function salvarHistorico() {
         try { localStorage.setItem('humanoSessionRecords', JSON.stringify(state.sessionRecords)); }
         catch (e) { console.warn(e); }
@@ -1022,7 +1065,6 @@ const humano = (() => {
             if (saved) {
                 state.sessionRecords = JSON.parse(saved);
                 state.recordCount = state.sessionRecords.length;
-                // Reconstrói o contador de índices
                 if (state.sessionRecords.length > 0) {
                     const ultimo = state.sessionRecords[state.sessionRecords.length - 1];
                     if (ultimo.codigo) {
@@ -1030,9 +1072,7 @@ const humano = (() => {
                         if (m) {
                             const letras = 'KIHGFEDCBA';
                             const letraIdx = letras.indexOf(m[1]);
-                            if (letraIdx >= 0) {
-                                state.indexCounter = letraIdx * 9 + parseInt(m[2], 10);
-                            }
+                            if (letraIdx >= 0) state.indexCounter = letraIdx * 9 + parseInt(m[2], 10);
                         }
                     }
                 }
@@ -1050,15 +1090,9 @@ const humano = (() => {
         }
         state.sessionRecords.slice().reverse().forEach(record => {
             const li = document.createElement('li');
-            const cod = document.createElement('span');
-            cod.className = 'codigo';
-            cod.textContent = record.codigo || '—';
-            const nome = document.createElement('span');
-            nome.className = 'nome';
-            nome.textContent = record.nome;
-            const btn = document.createElement('button');
-            btn.className = 'del-btn';
-            btn.textContent = '×';
+            const cod = document.createElement('span'); cod.className = 'codigo'; cod.textContent = record.codigo;
+            const nome = document.createElement('span'); nome.className = 'nome'; nome.textContent = record.nome;
+            const btn = document.createElement('button'); btn.className = 'del-btn'; btn.textContent = '×';
             btn.onclick = () => removerRegistro(record.id);
             li.append(cod, nome, btn);
             elementos.historicoLista.appendChild(li);
@@ -1079,7 +1113,7 @@ const humano = (() => {
         state.detectionCount = 0;
         state.recordCount = 0;
         state.indexCounter = 0;
-        state.trackedFaces = [];
+        limparCartoes();
         localStorage.removeItem('humanoSessionRecords');
         atualizarMetricas();
         renderizarHistorico();
@@ -1088,7 +1122,7 @@ const humano = (() => {
     function exportarRelatorio() {
         if (state.sessionRecords.length === 0) { alert("Nenhum registro."); return; }
         const conteudo = {
-            titulo: "HUMANO.EXE - RELATÓRIO DE INDEXAÇÃO",
+            titulo: "HUMANO.EXE — RELATÓRIO DE INDEXAÇÃO",
             descricao: "Dados sintéticos e fictícios. Não representam identificação biométrica real.",
             timestamp: new Date().toISOString(),
             metricas: { deteccoesFaciais: state.detectionCount, registrosIndexados: state.recordCount },
